@@ -2,7 +2,7 @@
 
 Example: basic
 
-```go
+```python
 from collections import namedtuple, OrderedDict
 from collections.abc import Iterable
 
@@ -82,7 +82,7 @@ if __name__ == "__main__":
 Example: simple
 > `pip install abupy`
 
-```go
+```python
 from collections import namedtuple, OrderedDict
 from collections.abc import Iterable
 from abupy import ABuSymbolPd
