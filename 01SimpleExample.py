@@ -1,4 +1,5 @@
-from collections import namedtuple, OrderedDict, Iterable
+from collections import namedtuple, OrderedDict
+from collections.abc import Iterable
 
 class Stock(object):
     def __init__(self, price_array, start_date, date_array=None):
