@@ -1,12 +1,10 @@
 # Quantitative Trading Basic
 
-Example: simple
-> `pip install abupy`
+Example: basic
 
 ```go
 from collections import namedtuple, OrderedDict
 from collections.abc import Iterable
-from abupy import ABuSymbolPd
 
 class Stock(object):
     def __init__(self, price_array, start_date, date_array=None):
@@ -59,6 +57,38 @@ class Stock(object):
     def __getitem__(self, i):
         date_key=self.__date_array[i]
         return self.stock_dict[date_key]
+
+if __name__ == "__main__":
+    price_array=['30.14', '29.58', '26.36', '32.56', '32.82']
+    start_date=20191025
+    s1=Stock(price_array, start_date)
+    # __str__
+    print(s1)
+    # __len__
+    print(len(s1))
+    # __getitem__
+    print(s1[0])
+    # __iter__
+    if isinstance(s1, Iterable):
+        for day in s1:
+            print(day)
+    
+    # test api
+    print(list(s1.filter_stock()))
+    print(list(s1.filter_stock(up=False)))
+    print(s1.filter_stock(up=False, sum=True))
+```
+
+Example: simple
+> `pip install abupy`
+
+```go
+from collections import namedtuple, OrderedDict
+from collections.abc import Iterable
+from abupy import ABuSymbolPd
+
+class Stock(object):
+    pass
 
 if __name__ == "__main__":
     # Tesla 1 year data
