@@ -101,3 +101,23 @@ if __name__ == "__main__":
     print(s1[-1])
     print(s1.filter_stock(up=False, sum=True))
 ```
+
+example: python3 abstact class
+
+```py
+from abc import ABC, abstractclassmethod
+
+class TradeStrategyBase(ABC):
+    @abstractclassmethod
+    def func(self):
+        raise NotImplementedError    
+
+class TradeStrategy1(TradeStrategyBase):
+    # 必须实现func，否则报错
+    def func(self):
+        print("world")    
+
+if __name__ == "__main__":
+    t=TradeStrategy1()
+    t.func()
+```
