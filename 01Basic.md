@@ -217,3 +217,85 @@ if __name__ == "__main__":
     plt.plot(np.array(trade_loop_back.profit_array).cumsum())
     plt.show()
 ```
+
+example: find good parameter
+
+```py
+from collections import namedtuple, OrderedDict
+from collections.abc import Iterable
+from abc import ABC, abstractclassmethod
+import numpy as np
+import matplotlib.pyplot as plt
+from functools import reduce
+from itertools import product
+
+class Stock(object):
+    pass
+
+
+class TradeStrategyBase(ABC):
+    pass
+
+
+class TradeStrategy2(TradeStrategyBase):
+    # 追跌策略，连续下跌两天，下跌率之和<-0.01，买入持有10天
+    s_keep_stock_threshold = 10
+    s_buy_change_threshold = -0.01
+
+    def __init__(self):
+        self.keep_stock_day = 0
+
+    def buy_strategy(self, trade_ind, trade_day, trade_days):
+        if self.keep_stock_day == 0 and trade_ind >= 1:
+            today_down = trade_day.change
+            yesterday_down = trade_days[trade_ind-1].change
+            if today_down < 0 and yesterday_down < 0 and today_down+yesterday_down < TradeStrategy2.s_buy_change_threshold:
+                self.keep_stock_day += 1
+        elif self.keep_stock_day > 0:
+            self.keep_stock_day += 1
+
+    def sell_strategy(self, trade_ind, trade_day, trade_days):
+        if self.keep_stock_day >= TradeStrategy2.s_keep_stock_threshold:
+            self.keep_stock_day = 0
+
+    @classmethod
+    def set_keep_stock_threshold(cls, v):
+        cls.s_keep_stock_threshold = v
+
+    @staticmethod
+    def set_buy_change_threshold(v):
+        TradeStrategy2.s_buy_change_threshold = v
+
+
+class TradeLoopBack(object):
+    pass
+
+
+def calc(trade_days, keep_stock_threshold, buy_change_threshold):
+    ts = TradeStrategy2()
+    TradeStrategy2.set_keep_stock_threshold(keep_stock_threshold)
+    TradeStrategy2.set_buy_change_threshold(buy_change_threshold)
+
+    trade_loopback = TradeLoopBack(trade_days, ts)
+    trade_loopback.execute_trade()
+    
+    profit = 0 if len(trade_loopback.profit_array) == 0 else reduce(
+        lambda a, b: a+b, trade_loopback.profit_array)
+    return profit, keep_stock_threshold, buy_change_threshold
+
+
+if __name__ == "__main__":
+    price_array = ['1.6638', '1.679', '1.7159', '1.7245', '1.7639', '1.7356', '1.7313', '1.734', '1.7112', '1.6974', '1.73',
+                  '1.7294', '1.7212', '1.7434', '1.7714', '1.7427', '1.7548', '1.7375', '1.7535', '1.7655', '1.8027', '1.7912', '1.7926']
+    s1 = Stock(price_array, start_date=20191001)
+    # print(s1)
+    # optimize parameter: keep_stock_threshold, buy_change_threshold
+    keep_stock_list=range(2, 20)
+    buy_change_list=[ c/1000.0 for c in range(-30, -5)]
+
+    result=[]
+    for keep_stock, buy_change in product(keep_stock_list, buy_change_list):
+        result.append(calc(s1, keep_stock, buy_change))
+
+    print(sorted(result, key=lambda x: x[0], reverse=True))
+```
