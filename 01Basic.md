@@ -131,3 +131,89 @@ if __name__ == "__main__":
     t=TradeStrategy1()
     t.func()
 ```
+
+example: simple example with loopback
+
+```py
+from collections import namedtuple, OrderedDict
+from collections.abc import Iterable
+from abc import ABC, abstractclassmethod
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+class Stock(object):
+    pass
+
+
+class TradeStrategyBase(ABC):
+    @abstractclassmethod
+    def buy_strategy(self, *args, **kwargs):
+        raise NotImplementedError
+
+    @abstractclassmethod
+    def sell_strategy(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+class TradeStrategy1(TradeStrategyBase):
+    # 追涨策略，股价上涨超过1%时，买入股票持有10天
+    s_keep_stock_threshold = 10
+
+    def __init__(self):
+        self.keep_stock_day = 0
+        self.__buy_change_threshold = 0.01
+
+    def buy_strategy(self, trade_ind, trade_day, trade_days):
+        if self.keep_stock_day == 0 and trade_day.change > self.__buy_change_threshold:
+            self.keep_stock_day += 1
+        elif self.keep_stock_day > 0:
+            self.keep_stock_day += 1
+
+    def sell_strategy(self, trade_ind, trade_day, trade_days):
+        if self.keep_stock_day >= TradeStrategy1.s_keep_stock_threshold:
+            self.keep_stock_day = 0
+
+    @property
+    def buy_change_threshold(self):
+        return self.__buy_change_threshold
+
+    @buy_change_threshold.setter
+    def buy_change_threshold(self, v):
+        if not isinstance(v, float):
+            raise TypeError('v must be float')
+        self.__buy_change_threshold = round(v, 2)
+
+
+class TradeLoopBack(object):
+    # 回测系统
+    def __init__(self, trade_days, trade_strategy):
+        self.trade_days = trade_days
+        self.trade_strategy = trade_strategy
+        self.profit_array = []
+
+    def execute_trade(self):
+        for i, d in enumerate(self.trade_days):
+            if self.trade_strategy.keep_stock_day > 0:
+                self.profit_array.append(d.change)
+
+            if hasattr(self.trade_strategy, 'buy_strategy'):
+                self.trade_strategy.buy_strategy(i, d, self.trade_days)
+
+            if hasattr(self.trade_strategy, 'sell_strategy'):
+                self.trade_strategy.sell_strategy(i, d, self.trade_days)
+
+
+if __name__ == "__main__":
+    price_array = ['1.6638', '1.679', '1.7159', '1.7245', '1.7639', '1.7356', '1.7313', '1.734', '1.7112', '1.6974', '1.73', '1.7294', '1.7212', '1.7434', '1.7714', '1.7427', '1.7548', '1.7375', '1.7535', '1.7655', '1.8027', '1.7912', '1.7926']
+    s1 = Stock(price_array, start_date=20191001)
+    # print(s1)
+    ts1 = TradeStrategy1()
+
+    trade_loop_back = TradeLoopBack(s1, ts1)
+    trade_loop_back.execute_trade()
+    print(trade_loop_back.profit_array)
+    # 下面没有按照复利计算
+    plt.plot(np.array(trade_loop_back.profit_array).cumsum())
+    plt.show()
+```
