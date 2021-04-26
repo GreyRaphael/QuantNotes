@@ -13,6 +13,9 @@
 看跌期权(Put Option): 在**expiry date**以**specified price**来**卖出**某种资产(Underlying Asset)
 > 高于strike price, 该期权worthless
 
+European Option & American Option
+- European Option: 必须在expiry data那个时间点
+- American Option: 可以在expiry date那个时间点及以前, 但是很少情况提前执行交割
 
 买入看涨期权(long Call Option, 对方交割Share)
 > <img src="img/Long-Call.jpg" width="500px"/>
