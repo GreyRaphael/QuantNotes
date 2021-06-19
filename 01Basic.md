@@ -324,3 +324,48 @@ MACD的零点出现早于金叉死叉，但是MACD的零点出现频率高于均
 
 所以一般的策略：
 - MACD处于零点，并且出现背离，那么就是买入卖出机会
+
+## Max-Dropdown
+
+```py
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(100)
+
+arr=np.random.random_integers(-1, 1, size=200).cumsum()+10
+arr=np.random.random_integers(-1, 1, size=200).cumsum()+50
+
+
+def get_max_dropdown(arr):
+    tmp_max=0
+    max_dropdown=0
+
+    final_max_index=0
+    final_min_index=0
+
+    for i, a in enumerate(arr):
+        if a > tmp_max:
+            tmp_max=a
+            final_max_index=i
+        else:
+
+            drop_down= 1- a/tmp_max
+            if drop_down > max_dropdown:
+                max_dropdown=drop_down
+                final_min_index=i
+                peak=final_max_index
+    
+    return peak, final_min_index, max_dropdown
+
+final_max_index, final_min_index, max_dropdown=get_max_dropdown(arr)
+print(final_max_index, final_min_index, max_dropdown)
+# 120, 150
+# 11, 29
+
+print(1-arr[29]/arr[11])
+print(1-arr[150]/arr[120])
+
+plt.plot(np.arange(200), arr, 'r', final_max_index, arr[final_max_index], 'bo', final_min_index, arr[final_min_index], 'go')
+plt.show()
+```
