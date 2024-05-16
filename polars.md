@@ -5,6 +5,8 @@
 
 ## deltalake
 
+> In fact, deltalake is composed of many *.parquet files with unique name
+
 `pip install deltalake`
 
 [write_delta_tutorial](https://blog.devgenius.io/harnessing-the-power-of-polars-and-delta-lake-for-data-processing-2d285ccfbef7)
