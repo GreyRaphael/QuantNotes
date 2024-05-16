@@ -2,6 +2,7 @@
 
 - [polars](#polars)
   - [deltalake](#deltalake)
+  - [tips](#tips)
 
 ## deltalake
 
@@ -22,3 +23,10 @@ df.write_delta('compare/delta_zstd', delta_write_options={
         "writer_properties": opt,
     })
 ```
+
+## tips
+
+for stock kl1m, tick, order/trade:
+- `pl.write_ipc(filname, compression='zstd')` is quick and smaller than 
+- `pl.write_parquet(filename, compression='zstd', compression_level=22)`
+
