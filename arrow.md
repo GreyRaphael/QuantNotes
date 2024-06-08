@@ -3,6 +3,7 @@
 - [arrow](#arrow)
   - [installation](#installation)
   - [Simple Usage](#simple-usage)
+  - [pyarrow](#pyarrow)
 
 ## installation
 
@@ -137,3 +138,8 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
 }
 ```
+
+## pyarrow
+
+[basic cookbook](https://arrow.apache.org/cookbook/py/)
+
