@@ -143,3 +143,4 @@ int main(int argc, char** argv) {
 
 [basic cookbook](https://arrow.apache.org/cookbook/py/)
 
+[pyarrow guide&api](https://arrow.apache.org/docs/python/index.html)
