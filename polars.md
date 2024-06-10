@@ -4,6 +4,7 @@
   - [deltalake](#deltalake)
   - [tips](#tips)
   - [group dynamic](#group-dynamic)
+  - [`join_asof`](#join_asof)
 
 ## deltalake
 
@@ -76,4 +77,40 @@ df.group_by_dynamic('time', every='3m', group_by=['code', pl.col('time').dt.date
 
 # complicated solution
 df.with_columns(pl.col("time").dt.date().alias("date")).group_by(by=['code', 'date']).map_groups(lambda x: x.sort('time').group_by_dynamic('time', every='3m').agg(pl.col('volume', 'price', 'code').last()))
+```
+
+## `join_asof`
+
+> left-join except that we match on nearest key rather than equal keys.
+
+```py
+import polars as pl
+import datetime as dt
+
+df1 = pl.DataFrame(
+    {
+        "dt": [dt.datetime(2024, 1, 1, 8, 1), dt.datetime(2024, 1, 1, 8, 3), dt.datetime(2024, 1, 1, 8, 6), dt.datetime(2024, 1, 1, 8, 7)],
+        "val": [1, 2, 3, 4],
+    }
+).sort("dt")
+# 2024-01-01 08:01:00	1
+# 2024-01-01 08:03:00	2
+# 2024-01-01 08:06:00	3
+# 2024-01-01 08:07:00	4
+
+df2 = pl.DataFrame(
+    {
+        "dt": [dt.datetime(2024, 1, 1, 8, 0), dt.datetime(2024, 1, 1, 8, 3), dt.datetime(2024, 1, 1, 8, 6), dt.datetime(2024, 1, 1, 8, 9)],
+    }
+).sort("dt")
+# 2024-01-01 08:00:00
+# 2024-01-01 08:03:00
+# 2024-01-01 08:06:00
+# 2024-01-01 08:09:00
+
+df2.join_asof(df1, on="dt", tolerance="3m", strategy="nearest")
+# 2024-01-01 08:00:00	1
+# 2024-01-01 08:03:00	2
+# 2024-01-01 08:06:00	3
+# 2024-01-01 08:09:00	4
 ```
