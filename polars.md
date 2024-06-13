@@ -133,7 +133,30 @@ df = pl.DataFrame(
 df.write_ipc("test.arrow", compression="zstd")
 ```
 
-convert to `pyarrow.RecordBatch` and write file using [pyarrow.ipc.RecordBatchFileWriter](https://arrow.apache.org/docs/python/generated/pyarrow.ipc.RecordBatchFileWriter.html)
+convert to `pyarrow.Table` and write file using [pyarrow.ipc.RecordBatchFileWriter](https://arrow.apache.org/docs/python/generated/pyarrow.ipc.RecordBatchFileWriter.html)
+
+```py
+import polars as pl
+import pyarrow as pa
+
+df = pl.DataFrame(
+    {
+        "foo": [1, 2, 3, 4, 5],
+        "bar": [6, 7, 8, 9, 10],
+        "ham": ["a", "b", "c", "d", "e"],
+    }
+)
+
+tb = df.to_arrow()
+
+opt = pa.ipc.IpcWriteOptions(compression=pa.Codec(compression="zstd", compression_level=22))
+
+with pa.ipc.new_file("test2.arrow", schema=tb.schema, options=opt) as writer:
+    writer.write_table(tb)
+    # writer.write(tb) # alternative
+```
+
+convert to `pyarrow.RecordBatch` and write file using [pyarrow.ipc.RecordBatchFileWriter]
 
 ```py
 import polars as pl
@@ -154,4 +177,5 @@ opt = pa.ipc.IpcWriteOptions(compression=pa.Codec(compression="zstd", compressio
 with pa.ipc.new_file("test2.arrow", schema=batches[0].schema, options=opt) as writer:
     for rb in batches:
         writer.write_batch(rb)
+        # writer.write(rb) # alternative
 ```
