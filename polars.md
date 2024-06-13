@@ -5,6 +5,7 @@
   - [tips](#tips)
   - [group dynamic](#group-dynamic)
   - [`join_asof`](#join_asof)
+  - [ipc](#ipc)
 
 ## deltalake
 
@@ -113,4 +114,44 @@ df2.join_asof(df1, on="dt", tolerance="3m", strategy="nearest")
 # 2024-01-01 08:03:00	2
 # 2024-01-01 08:06:00	3
 # 2024-01-01 08:09:00	4
+```
+
+## ipc
+
+[polars.DataFrame.write_ipc](https://docs.pola.rs/api/python/stable/reference/api/polars.DataFrame.write_ipc.html) not suport `compression_level`
+
+```py
+import polars as pl
+
+df = pl.DataFrame(
+    {
+        "foo": [1, 2, 3, 4, 5],
+        "bar": [6, 7, 8, 9, 10],
+        "ham": ["a", "b", "c", "d", "e"],
+    }
+)
+df.write_ipc("test.arrow", compression="zstd")
+```
+
+convert to `pyarrow.RecordBatch` and write file using [pyarrow.ipc.RecordBatchFileWriter](https://arrow.apache.org/docs/python/generated/pyarrow.ipc.RecordBatchFileWriter.html)
+
+```py
+import polars as pl
+import pyarrow as pa
+
+df = pl.DataFrame(
+    {
+        "foo": [1, 2, 3, 4, 5],
+        "bar": [6, 7, 8, 9, 10],
+        "ham": ["a", "b", "c", "d", "e"],
+    }
+)
+
+batches=df.to_arrow().to_batches()
+
+opt = pa.ipc.IpcWriteOptions(compression=pa.Codec(compression="zstd", compression_level=22))
+
+with pa.ipc.new_file("test2.arrow", schema=batches[0].schema, options=opt) as writer:
+    for rb in batches:
+        writer.write_batch(rb)
 ```
