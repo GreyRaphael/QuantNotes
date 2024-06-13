@@ -158,3 +158,10 @@ arr01 = pa.array([1, 2, 3, 4, 5, 6, 7])
 print(pc.round_to_multiple(arr01, 3, round_mode="down"))  # [0,0,3,3,3,6,6]
 print(pc.round_to_multiple(arr01, 3, round_mode="up"))  # [3,3,3,6,6,6,9]
 ```
+
+[pyarrow.compute.trunc](https://arrow.apache.org/docs/python/generated/pyarrow.compute.trunc.html)
+
+```py
+arr01 = pa.array([1.1, 2.1, 3.1, 4, 5, 6, 7])
+pc.trunc(arr01) # [1, 2, 3, 4, 5, 6, 7]
+```
