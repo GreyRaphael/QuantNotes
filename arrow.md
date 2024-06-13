@@ -4,6 +4,7 @@
   - [installation](#installation)
   - [Simple Usage](#simple-usage)
   - [pyarrow](#pyarrow)
+    - [RecordBatch vs Table](#recordbatch-vs-table)
     - [compute functions](#compute-functions)
 
 ## installation
@@ -145,6 +146,44 @@ int main(int argc, char** argv) {
 [basic cookbook](https://arrow.apache.org/cookbook/py/)
 
 [pyarrow guide&api](https://arrow.apache.org/docs/python/index.html)
+
+### RecordBatch vs Table
+
+```py
+import pyarrow as pa
+
+batch = pa.record_batch(
+    [
+        pa.array([1, 2, 3, 4]),
+        pa.array(["foo", "bar", "baz", None]),
+        pa.array([True, None, False, True]),
+    ],
+    names=["f0", "f1", "f2"],
+)
+# pyarrow.RecordBatch
+# f0: int64
+# f1: string
+# f2: bool
+# ----
+# f0: [1,2,3,4]
+# f1: ["foo","bar","baz",null]
+# f2: [true,null,false,true]
+
+col0 = batch.column(0)  # Int64Array
+col0_row2 = col0[2]  # Int64Scalar
+col0_row2.as_py() # 3
+
+# pa.Table
+tb = pa.Table.from_batches([batch for _ in range(3)])
+
+col0 = tb.column(0) # ChunkedArray
+col0_row2 = col0[5] # Int64Scalar
+col0_row2.as_py() # 1
+
+cks = col0.chunks # list of Int64Array
+ck0 = col0.chunk(0) # Int64Array
+ck0_row2 = ck0[2] # Int64Scalar
+```
 
 ### compute functions
 
