@@ -4,6 +4,7 @@
   - [installation](#installation)
   - [Simple Usage](#simple-usage)
   - [pyarrow](#pyarrow)
+    - [compute functions](#compute-functions)
 
 ## installation
 
@@ -144,3 +145,16 @@ int main(int argc, char** argv) {
 [basic cookbook](https://arrow.apache.org/cookbook/py/)
 
 [pyarrow guide&api](https://arrow.apache.org/docs/python/index.html)
+
+### compute functions
+
+[pyarrow.compute.round_to_multiple](https://arrow.apache.org/docs/python/generated/pyarrow.compute.round_to_multiple.html)
+
+```py
+import pyarrow as pa
+import pyarrow.compute as pc
+
+arr01 = pa.array([1, 2, 3, 4, 5, 6, 7])
+print(pc.round_to_multiple(arr01, 3, round_mode="down"))  # [0,0,3,3,3,6,6]
+print(pc.round_to_multiple(arr01, 3, round_mode="up"))  # [3,3,3,6,6,6,9]
+```
