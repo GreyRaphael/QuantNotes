@@ -204,3 +204,16 @@ print(pc.round_to_multiple(arr01, 3, round_mode="up"))  # [3,3,3,6,6,6,9]
 arr01 = pa.array([1.1, 2.1, 3.1, 4, 5, 6, 7])
 pc.trunc(arr01) # [1, 2, 3, 4, 5, 6, 7]
 ```
+
+[pyarrow.compute.case_when](https://arrow.apache.org/docs/python/generated/pyarrow.compute.case_when.html)
+
+```py
+arr01 = pa.array([1, 2, 3, 4, 5])
+
+cond1 = pc.less(arr01, 2)
+cond2 = pc.greater(arr01, 4)
+conditions = pa.StructArray.from_arrays([cond1, cond2], names=["cond1", "cond2"])
+cases = [pa.scalar(0), pa.scalar(10), arr01]
+
+pc.case_when(conditions, *cases) # [0, 2, 3, 4, 10]
+```
