@@ -217,3 +217,28 @@ cases = [pa.scalar(0), pa.scalar(10), arr01]
 
 pc.case_when(conditions, *cases) # [0, 2, 3, 4, 10]
 ```
+
+[pyarrow.compute.choose](https://arrow.apache.org/docs/python/generated/pyarrow.compute.choose.html)
+
+```py
+indices = pa.array([0, 2, 1])
+
+list1 = pa.array([10, 11, 12])
+list2 = pa.array([20, 21, 22])
+list3 = pa.array([30, 31, 32])
+data = [list1, list2, list3]
+
+chosen_values = pc.choose(indices, *data)  # [10, 31, 22]
+```
+
+[pyarrow.compute.if_else](https://arrow.apache.org/docs/python/generated/pyarrow.compute.if_else.html)
+
+```py
+cond = pa.array([True, False, True])
+
+list1 = pa.array([10, 11, 12])
+list2 = pa.array([20, 21, 22])
+data = [list1, list2]
+
+chosen_values = pc.if_else(cond, list1, list2)  # [10, 21, 12]
+```
