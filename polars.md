@@ -3,8 +3,10 @@
 - [polars](#polars)
   - [deltalake](#deltalake)
   - [tips](#tips)
-  - [group dynamic](#group-dynamic)
-  - [`join_asof`](#join_asof)
+  - [temporal](#temporal)
+    - [`dt.round`](#dtround)
+    - [group dynamic](#group-dynamic)
+    - [`join_asof`](#join_asof)
   - [ipc](#ipc)
 
 ## deltalake
@@ -33,7 +35,44 @@ for stock kl1m, tick, order/trade:
 - `pl.write_ipc(filname, compression='zstd')` is quick and smaller than 
 - `pl.write_parquet(filename, compression='zstd', compression_level=22)`
 
-## group dynamic
+## temporal
+
+### `dt.round`
+
+```py
+import polars as pl
+import pyarrow.compute as pc
+
+df = pl.DataFrame(
+    {
+        "dt": [
+            "2024-05-31 09:30:02",
+            "2024-05-31 09:30:05",
+            "2024-05-31 09:30:08",
+            "2024-05-31 09:30:11",
+            "2024-05-31 09:30:14",
+        ]
+    }
+).with_columns(pl.col("dt").str.to_datetime())
+
+df.select(pl.col('dt').dt.round(every='3s').dt.offset_by('-3s'))
+# 2024-05-31 09:30:00
+# 2024-05-31 09:30:03
+# 2024-05-31 09:30:06
+# 2024-05-31 09:30:09
+# 2024-05-31 09:30:12
+
+# by pyarrow roumd_temporal
+dt_arr = df.to_arrow()["dt"]
+pc.round_temporal(dt_arr, multiple=3, unit='second')
+# 2024-05-31 09:30:03
+# 2024-05-31 09:30:06
+# 2024-05-31 09:30:09
+# 2024-05-31 09:30:12
+# 2024-05-31 09:30:15
+```
+
+### group dynamic
 
 ```py
 import polars as pl
@@ -80,7 +119,7 @@ df.group_by_dynamic('time', every='3m', group_by=['code', pl.col('time').dt.date
 df.with_columns(pl.col("time").dt.date().alias("date")).group_by(by=['code', 'date']).map_groups(lambda x: x.sort('time').group_by_dynamic('time', every='3m').agg(pl.col('volume', 'price', 'code').last()))
 ```
 
-## `join_asof`
+### `join_asof`
 
 > left-join except that we match on nearest key rather than equal keys.
 
