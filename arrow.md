@@ -3,6 +3,7 @@
 - [arrow](#arrow)
   - [installation](#installation)
   - [Simple Usage](#simple-usage)
+    - [c++ arrow filter compute](#c-arrow-filter-compute)
   - [pyarrow](#pyarrow)
     - [RecordBatch vs Table](#recordbatch-vs-table)
     - [compute functions](#compute-functions)
@@ -138,6 +139,60 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
+}
+```
+
+### c++ arrow filter compute
+
+> `vcpkg install arrow[compute]`
+
+[compute-function-list](https://arrow.apache.org/docs/cpp/compute.html#compute-function-list)
+
+```cpp
+#include <arrow/api.h>
+#include <arrow/compute/api.h>
+
+#include <format>
+#include <iostream>
+
+arrow::Result<std::shared_ptr<arrow::RecordBatch>> CreateRecordBatch() {
+    arrow::Int32Builder builder1;
+    arrow::FloatBuilder builder2;
+
+    ARROW_RETURN_NOT_OK(builder1.AppendValues({1, 2, 5, 3, 4}));
+    ARROW_RETURN_NOT_OK(builder2.AppendValues({1.1, 3.2, 4.3, 5.6, 7.8}));
+
+    std::shared_ptr<arrow::Array> array1;
+    std::shared_ptr<arrow::Array> array2;
+
+    ARROW_RETURN_NOT_OK(builder1.Finish(&array1));
+    ARROW_RETURN_NOT_OK(builder2.Finish(&array2));
+
+    auto schema = arrow::schema({arrow::field("column1", arrow::int32()), arrow::field("column2", arrow::float32())});
+    return arrow::RecordBatch::Make(schema, array1->length(), {array1, array2});
+}
+
+auto FilterRecordBatch(const std::shared_ptr<arrow::RecordBatch>& rb) {
+    // array
+    auto col1 = rb->column(0);
+    // boolean array
+    // auto mask = arrow::compute::CallFunction("greater_equal", {col1, arrow::MakeScalar(3)})->make_array();
+    auto mask = arrow::compute::CallFunction("greater_equal", {col1, arrow::MakeScalar(3)}).ValueOrDie();
+
+    auto filtered_datum = arrow::compute::CallFunction("filter", {rb, mask});
+    auto filtered_tb = filtered_datum->record_batch();
+    return filtered_tb;
+}
+
+int main() {
+    auto result = CreateRecordBatch();
+    if (result.ok()) {
+        auto rb = result.ValueOrDie();
+        auto filtered_rb = FilterRecordBatch(rb);
+        std::cout << std::format("rb={}, filtered_rb={}\n", rb->ToString(), filtered_rb->ToString());
+    } else {
+        std::cerr << "Failed to create RecordBatch: " << result.status().message() << std::endl;
+    }
 }
 ```
 
