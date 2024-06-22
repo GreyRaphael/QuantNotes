@@ -243,7 +243,7 @@ with pa.ipc.new_file("test2.arrow", schema=tb.schema, options=opt) as writer:
     # writer.write(tb) # alternative
 ```
 
-convert to `pyarrow.RecordBatch` and write file using [pyarrow.ipc.RecordBatchFileWriter]
+convert to `pyarrow.RecordBatch` and write to ipc file
 
 ```py
 import polars as pl
