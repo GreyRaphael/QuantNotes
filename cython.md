@@ -3,6 +3,7 @@
 - [cython](#cython)
   - [wrapper pure python](#wrapper-pure-python)
   - [cython inherit c++ class](#cython-inherit-c-class)
+  - [cython inherit c++ pure virtual class](#cython-inherit-c-pure-virtual-class)
 
 ## wrapper pure python
 
@@ -266,3 +267,6 @@ if __name__ == "__main__":
     print(obj5.DataExists())
     obj5.MyFunction()
 ```
+
+## cython inherit c++ pure virtual class
+
