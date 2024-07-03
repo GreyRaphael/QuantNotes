@@ -2,7 +2,7 @@
 
 - [cython](#cython)
   - [wrapper pure python](#wrapper-pure-python)
-  - [inheritance](#inheritance)
+  - [cython inherit c++ class](#cython-inherit-c-class)
 
 ## wrapper pure python
 
