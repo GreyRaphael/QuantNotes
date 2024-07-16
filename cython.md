@@ -3,7 +3,8 @@
 - [cython](#cython)
   - [wrapper pure python](#wrapper-pure-python)
   - [cython inherit c++ class](#cython-inherit-c-class)
-  - [cython inherit c++ pure virtual class](#cython-inherit-c-pure-virtual-class)
+  - [inherit c++ pure virtual class](#inherit-c-pure-virtual-class)
+    - [only build library](#only-build-library)
 
 ## wrapper pure python
 
@@ -268,5 +269,91 @@ if __name__ == "__main__":
     obj5.MyFunction()
 ```
 
-## cython inherit c++ pure virtual class
+## inherit c++ pure virtual class
+
+> recommended for pybind11, not recommended for cython, [notes](https://zyxin.xyz/blog/2019-08/glue-python-cpp/#boostpythonpybind11-vs-cython)
+
+### only build library
+
+simple example with override c++ virtual functions
+
+```bash
+.
+├── main.cpp
+└── test.py
+```
+
+```cpp
+// main.cpp
+#include <pybind11/pybind11.h>
+#include <memory>
+
+class Base {
+   public:
+    virtual ~Base() = default;
+    virtual int work(int x) = 0;
+
+    int start() {
+        int sum = 0;
+        for (int i = 0; i < 4; ++i) {
+            sum += work(i);
+        }
+        return sum;
+    }
+};
+
+class PyBase : public Base {
+   public:
+    using Base::Base;  // Inherit constructors
+
+    int work(int x) override {
+        PYBIND11_OVERRIDE_PURE(
+            int,  /* Return type */
+            Base, /* Parent class */
+            work, /* Name of function in C++ (must match Python name) */
+            x     /* Argument(s) */
+        );
+    }
+};
+
+PYBIND11_MODULE(strategy, m) {
+    pybind11::class_<Base, PyBase, std::shared_ptr<Base>>(m, "BaseStrategy")
+        .def(pybind11::init<>())
+        .def("start", &Base::start)
+        .def("work", &Base::work);
+}
+```
+
+```bash
+# build library
+# g++ -O3 -Wall -shared -std=c++20 -fPIC `python3 -m pybind11 --includes` main.cpp -o strategy`python3-config --extension-suffix`
+# c++ -O3 -Wall -shared -std=c++20 -fPIC `python3 -m pybind11 --includes` main.cpp -o strategy`python3-config --extension-suffix`
+clang++ -O3 -Wall -shared -std=c++20 -fPIC `python3 -m pybind11 --includes` main.cpp -o strategy`python3-config --extension-suffix`
+```
+
+```py
+# test.py
+from strategy import BaseStrategy
+
+class Strategy1(BaseStrategy):
+    def work(self, x):
+        return x * x
+
+# error
+class Strategy2(BaseStrategy):
+    pass
+
+class Strategy3(BaseStrategy):
+    def work(self, x):
+        return x * x * x
+
+obj1 = Strategy1()
+print(obj1.start())  # 14
+
+# obj2 = Strategy2()
+# print(obj2.start())  # error, unimplemented
+
+obj3 = Strategy3()
+print(obj3.start())  # 36
+```
 
