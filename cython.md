@@ -5,6 +5,7 @@
   - [cython inherit c++ class](#cython-inherit-c-class)
   - [inherit c++ pure virtual class](#inherit-c-pure-virtual-class)
     - [only build library](#only-build-library)
+    - [pybind11 build whl](#pybind11-build-whl)
 
 ## wrapper pure python
 
@@ -357,3 +358,75 @@ obj3 = Strategy3()
 print(obj3.start())  # 36
 ```
 
+### pybind11 build whl
+
+```bash
+.
+├── main.cpp # same as above
+├── setup.py
+└── test.py # sample as above
+```
+
+```py
+# setup.py
+from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
+import pybind11
+
+ext_modules = [
+    Extension(
+        name="strategy",
+        sources=[
+            "main.cpp",
+        ],
+        include_dirs=[
+            pybind11.get_include(),  # Path to pybind11 headers
+        ],
+        language="c++",
+        extra_compile_args=["-std=c++20"],  # depends on compiler
+        # py_limited_api=True, # not support in pybind11, but in cython
+        # define_macros=[("Py_LIMITED_API", "0x03090000")], # not support in pybind11, but in cython
+    ),
+]
+
+setup(
+    name="strategy",
+    version="1.0.0",
+    ext_modules=ext_modules,
+    cmdclass={"build_ext": build_ext},
+    zip_safe=False,
+)
+```
+
+- `python setup.py bdist_wheel` or `python setup.py build`
+- `auditwheel show dist/*.whl`: check manylinux platform
+- `auditwheel repair dist/*.whl --plat manylinux_2_24_x86_64`
+
+```bash
+.
+├── build
+│   ├── bdist.linux-x86_64
+│   ├── lib.linux-x86_64-3.9
+│   │   └── strategy.cpython-39-x86_64-linux-gnu.so
+│   └── temp.linux-x86_64-3.9
+│       └── main.o
+├── dist
+│   └── strategy-1.0.0-cp39-cp39-linux_x86_64.whl
+├── main.cpp
+├── setup.py
+├── strategy.egg-info
+│   ├── dependency_links.txt
+│   ├── not-zip-safe
+│   ├── PKG-INFO
+│   ├── SOURCES.txt
+│   └── top_level.txt
+├── test.py
+└── wheelhouse
+    └── strategy-1.0.0-cp39-cp39-manylinux_2_34_x86_64.whl # target file
+```
+
+```bash
+pip install wheelhouse/*.whl
+python test.py
+pip uninstall strategy
+```
