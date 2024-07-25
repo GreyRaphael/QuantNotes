@@ -19,6 +19,8 @@ def regular_io(filename):
 
 def mmap_io(filename):
     with open(filename, mode="r", encoding="utf8") as file_obj:
+        # length=0. This is the length in bytes of the memory map.
+        # 0 is a special value indicating that the system should create a memory map large enough to hold the entire file.
         with mmap.mmap(file_obj.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
             text = mmap_obj.read()
             # print(text)
@@ -32,5 +34,4 @@ if __name__ == "__main__":
     print("regular_io costs ", (t2 - t1) / 1e9)
     print("mmap_io costs ", (t3 - t2) / 1e9)
     print(f"regular_io/mmap_io={(t2 - t1)/(t3 - t2):.2f}")  # ~15
-
 ```
