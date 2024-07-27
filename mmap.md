@@ -3,6 +3,7 @@
 - [Memory-Mapped File](#memory-mapped-file)
   - [Reading a Memory-Mapped File With mmap](#reading-a-memory-mapped-file-with-mmap)
   - [mmap for Shared Memory](#mmap-for-shared-memory)
+    - [transfer data between processes](#transfer-data-between-processes)
 
 
 ## Reading a Memory-Mapped File With mmap
@@ -92,4 +93,52 @@ if __name__ == "__main__":
     finally:
         shm.close()
         shm.unlink()
+```
+
+### transfer data between processes
+
+```bash
+.
+├── data.zip
+├── reader.py
+└── writer.py
+```
+
+```py
+# writer.py
+from multiprocessing.shared_memory import SharedMemory
+import time
+
+
+with open("data.zip", "rb") as file:
+    data = file.read()
+    shm = SharedMemory(name="shm_test", create=True, size=len(data))
+    shm.buf[:] = data
+
+
+try:
+    while True:
+        print("data available")
+        time.sleep(3)
+finally:
+    shm.close()
+    shm.unlink()
+```
+
+```py
+# reader.py
+from multiprocessing.shared_memory import SharedMemory
+import time
+
+shm = SharedMemory("shm_test", create=False)
+with open("result.zip", "wb") as file:
+    data = shm.buf[:]
+    file.write(data)
+
+try:
+    while True:
+        print("finish write")
+        time.sleep(3)
+finally:
+    shm.close()
 ```
