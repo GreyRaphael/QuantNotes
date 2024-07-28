@@ -107,7 +107,7 @@ if __name__ == "__main__":
 ```
 
 ```py
-# writer.py for windows
+# writer.py for windows & linux
 from multiprocessing.shared_memory import SharedMemory
 import time
 
@@ -122,27 +122,7 @@ try:
         time.sleep(3)
 finally:
     shm.close()
-    # shm.unlink()
-```
-
-```py
-# writer.py for linux
-from multiprocessing.shared_memory import SharedMemory
-import multiprocessing.resource_tracker as rt
-import time
-
-with open("data.zip", "rb") as file:
-    data = file.read()
-    shm = SharedMemory(name="shm_test", create=True, size=len(data))
-    shm.buf[:] = data
-
-try:
-    while True:
-        print("data available")
-        time.sleep(3)
-finally:
-    shm.close()
-    rt.unregister("/shm_test", "shared_memory")
+    shm.unlink() # destroied in producer
 ```
 
 > if `del data` not exist, The error you’re encountering, `BufferError: cannot close exported pointers exist`, occurs because there are still references to the shared memory buffer when you attempt to close it. This can happen if the buffer is still being accessed or if there are lingering references to it. To resolve this issue, you can ensure that all references to the shared memory buffer are deleted before closing the shared memory.
@@ -150,23 +130,16 @@ finally:
 ```py
 # reader.py, method1
 from multiprocessing.shared_memory import SharedMemory
-import time
 
 shm = SharedMemory("shm_test", create=False)
 with open("result.zip", "wb") as file:
     data = shm.buf[:]
     file.write(data)
 
-try:
-    while True:
-        print("finish write")
-        time.sleep(3)
-finally:
-    del data  # must del data,
-    # By explicitly deleting the data reference before closing the shared memory,
-    # you can avoid the `BufferError: cannot close exported pointers exist`
-    shm.close()
-    shm.unlink()
+del data  # must del data,
+# By explicitly deleting the data reference before closing the shared memory,
+# you can avoid the `BufferError: cannot close exported pointers exist`
+shm.close()
 ```
 
 ```py
@@ -178,7 +151,19 @@ with open("result.zip", "wb") as file:
     file.write(shm.buf[:])
 
 shm.close()
-shm.unlink()
+```
+
+```py
+# reader.py for linux
+from multiprocessing.shared_memory import SharedMemory
+import multiprocessing.resource_tracker as rt
+
+shm = SharedMemory("shm_test", create=False)
+with open("result.zip", "wb") as file:
+    file.write(shm.buf[:])
+
+shm.close()
+rt.unregister("/shm_test", "shared_memory")
 ```
 
 ### transfer data between processes by `mmap` in windows
