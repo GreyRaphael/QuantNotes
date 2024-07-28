@@ -3,7 +3,9 @@
 - [Memory-Mapped File](#memory-mapped-file)
   - [Reading a Memory-Mapped File With mmap](#reading-a-memory-mapped-file-with-mmap)
   - [mmap for Shared Memory](#mmap-for-shared-memory)
-    - [transfer data between processes](#transfer-data-between-processes)
+    - [transfer data between processes by `SharedMemory`](#transfer-data-between-processes-by-sharedmemory)
+    - [transfer data between processes by `mmap` in windows](#transfer-data-between-processes-by-mmap-in-windows)
+    - [transfer data between processes by `mmap` in linux](#transfer-data-between-processes-by-mmap-in-linux)
 
 
 ## Reading a Memory-Mapped File With mmap
@@ -95,7 +97,7 @@ if __name__ == "__main__":
         shm.unlink()
 ```
 
-### transfer data between processes
+### transfer data between processes by `SharedMemory`
 
 ```bash
 .
@@ -157,4 +159,130 @@ with open("result.zip", "wb") as file:
 
 shm.close()
 shm.unlink()
+```
+
+### transfer data between processes by `mmap` in windows
+
+The mmap library in Python doesn’t provide direct methods to retrieve metadata such as the size of the memory-mapped file. However, you can work around this limitation by using additional mechanisms to store and retrieve the size information.
+
+```py
+# writer.py
+import mmap
+import struct
+import time
+
+# Read the data from the file
+with open("data.zip", "rb") as file:
+    data = file.read()
+    size = len(data)
+
+# Create a memory-mapped file with a fixed-size header
+header_size = struct.calcsize("Q")  # Size of an unsigned long long (8 bytes)
+shm = mmap.mmap(-1, header_size + size, tagname="shm_test", access=mmap.ACCESS_WRITE)
+
+# Write the size to the header
+shm[:header_size] = struct.pack("Q", size)
+
+# Write the data after the header
+shm[header_size:] = data
+
+try:
+    while True:
+        print("data available")
+        time.sleep(3)
+finally:
+    shm.close()
+```
+
+```py
+# reader.py
+import mmap
+import struct
+
+# Define the size of the header
+header_size = struct.calcsize("Q")  # Size of an unsigned long long (8 bytes)
+
+# Open the memory-mapped file
+shm = mmap.mmap(-1, header_size, tagname="shm_test", access=mmap.ACCESS_READ)
+
+# Read the size from the header
+size = struct.unpack("Q", shm[:header_size])[0]
+
+# Resize the memory map to include the data
+shm.close()
+shm = mmap.mmap(-1, header_size + size, tagname="shm_test", access=mmap.ACCESS_READ)
+
+# Read the data after the header
+data = shm[header_size:]
+
+# Write the data to a file
+with open("result.zip", "wb") as file:
+    file.write(data)
+
+shm.close()
+```
+
+### transfer data between processes by `mmap` in linux
+
+```py
+# writer.py
+# program1.py
+import mmap
+import struct
+import time
+import os
+
+# Read the data from the file
+with open("data.zip", "rb") as file:
+    data = file.read()
+    size = len(data)
+
+# Create a memory-mapped file with a fixed-size header
+header_size = struct.calcsize("Q")  # Size of an unsigned long long (8 bytes)
+with open("/tmp/shm_test", "wb") as f:
+    f.write(b"\x00" * (header_size + size))
+
+with open("/tmp/shm_test", "r+b") as f:
+    shm = mmap.mmap(f.fileno(), header_size + size, access=mmap.ACCESS_WRITE)
+
+    # Write the size to the header
+    shm[:header_size] = struct.pack("Q", size)
+
+    # Write the data after the header
+    shm[header_size:] = data
+
+    try:
+        while True:
+            print("data available")
+            time.sleep(3)
+    finally:
+        shm.close()
+        os.remove("/tmp/shm_test")
+```
+
+```py
+# reader.py
+import mmap
+import struct
+
+# Define the size of the header
+header_size = struct.calcsize("Q")  # Size of an unsigned long long (8 bytes)
+
+with open("/tmp/shm_test", "r+b") as f:
+    shm = mmap.mmap(f.fileno(), header_size, access=mmap.ACCESS_DEFAULT)
+
+    # Read the size from the header
+    size = struct.unpack("Q", shm[:header_size])[0]
+
+    # Resize the memory map to include the data
+    shm.resize(header_size + size)
+
+    # Read the data after the header
+    data = shm[header_size:]
+
+    # Write the data to a file
+    with open("result.zip", "wb") as file:
+        file.write(data)
+
+    shm.close()
 ```
