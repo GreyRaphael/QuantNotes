@@ -109,12 +109,10 @@ if __name__ == "__main__":
 from multiprocessing.shared_memory import SharedMemory
 import time
 
-
 with open("data.zip", "rb") as file:
     data = file.read()
     shm = SharedMemory(name="shm_test", create=True, size=len(data))
     shm.buf[:] = data
-
 
 try:
     while True:
@@ -124,6 +122,8 @@ finally:
     shm.close()
     shm.unlink()
 ```
+
+> if `del data` not exist, The error you’re encountering, `BufferError: cannot close exported pointers exist`, occurs because there are still references to the shared memory buffer when you attempt to close it. This can happen if the buffer is still being accessed or if there are lingering references to it. To resolve this issue, you can ensure that all references to the shared memory buffer are deleted before closing the shared memory.
 
 ```py
 # reader.py
@@ -140,5 +140,9 @@ try:
         print("finish write")
         time.sleep(3)
 finally:
+    del data  # must del data,
+    # By explicitly deleting the data reference before closing the shared memory,
+    # you can avoid the `BufferError: cannot close exported pointers exist`
     shm.close()
+    shm.unlink()
 ```
