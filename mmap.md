@@ -2,10 +2,11 @@
 
 - [Memory-Mapped File](#memory-mapped-file)
   - [Reading a Memory-Mapped File With mmap](#reading-a-memory-mapped-file-with-mmap)
-  - [mmap for Shared Memory](#mmap-for-shared-memory)
+  - [mmap and Shared Memory](#mmap-and-shared-memory)
     - [transfer data between processes by `SharedMemory`](#transfer-data-between-processes-by-sharedmemory)
-    - [transfer data between processes by `mmap` in windows](#transfer-data-between-processes-by-mmap-in-windows)
-    - [transfer data between processes by `mmap` in linux](#transfer-data-between-processes-by-mmap-in-linux)
+    - [transfer file between processes by `SharedMemory`](#transfer-file-between-processes-by-sharedmemory)
+    - [transfer file between processes by `mmap` in windows](#transfer-file-between-processes-by-mmap-in-windows)
+    - [transfer file between processes by `mmap` in linux](#transfer-file-between-processes-by-mmap-in-linux)
 
 
 ## Reading a Memory-Mapped File With mmap
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     print(f"regular_io/mmap_io={(t2 - t1)/(t3 - t2):.2f}")  # ~15
 ```
 
-## mmap for Shared Memory
+## mmap and Shared Memory
 
 simple example before python3.8, by `os.fork()`
 > Until now, you’ve used memory-mapped files only for data on disk. However, you can also create anonymous memory maps that have no physical storage. This can be done by passing `-1` as the file descriptor
@@ -98,6 +99,62 @@ if __name__ == "__main__":
 ```
 
 ### transfer data between processes by `SharedMemory`
+
+```bash
+.
+├── program1.py
+└── program2.py
+```
+
+```py
+# program1.py
+from multiprocessing.shared_memory import SharedMemory
+import struct
+import time
+
+shm = SharedMemory(name="MyMemory", size=1024, create=True)
+# default shm.buf all is 0
+shm.buf[0] = 128  # Byte data 0~255
+# 4 bytes
+shm.buf[4:8] = struct.pack("i", -1)  # int32 use struct
+shm.buf[8:12] = struct.pack("I", 1)  # uint32 use struct
+shm.buf[12:16] = struct.pack("f", 2.0)  # float32 use struct
+
+try:
+    while True:
+        print(shm.buf[0], end=",")
+        print(shm.buf[1], end=",")
+        print(shm.buf[2], end=",")
+        print(shm.buf[3], end=",")
+        print(struct.unpack("i", shm.buf[4:8])[0], end=",")
+        print(struct.unpack("I", shm.buf[8:12])[0], end=",")
+        print(struct.unpack("f", shm.buf[12:16])[0])
+
+        time.sleep(3)
+except KeyboardInterrupt:
+    shm.close()
+    shm.unlink()
+```
+
+```py
+# program2.py
+from multiprocessing.shared_memory import SharedMemory
+import struct
+
+shm = SharedMemory(name="MyMemory", create=False)
+
+# modify data
+shm.buf[1] = 127
+shm.buf[2] = 255
+# shm.buf[3] = 256  # error
+shm.buf[4:8] = struct.pack("i", -128)
+shm.buf[8:12] = struct.pack("I", 6666)
+shm.buf[12:16] = struct.pack("f", 1.414)
+
+shm.close()
+```
+
+### transfer file between processes by `SharedMemory`
 
 ```bash
 .
@@ -166,7 +223,7 @@ shm.close()
 rt.unregister("/shm_test", "shared_memory")
 ```
 
-### transfer data between processes by `mmap` in windows
+### transfer file between processes by `mmap` in windows
 
 The mmap library in Python doesn’t provide direct methods to retrieve metadata such as the size of the memory-mapped file. However, you can work around this limitation by using additional mechanisms to store and retrieve the size information.
 
@@ -227,7 +284,7 @@ with open("result.zip", "wb") as file:
 shm.close()
 ```
 
-### transfer data between processes by `mmap` in linux
+### transfer file between processes by `mmap` in linux
 
 ```py
 # writer.py
