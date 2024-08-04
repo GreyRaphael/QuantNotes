@@ -1,5 +1,10 @@
 # Inter-Process Communication
 
+- [Inter-Process Communication](#inter-process-communication)
+  - [nng or pynng](#nng-or-pynng)
+    - [pynng `inproc`](#pynng-inproc)
+    - [pynng `ipc`, `tcp` and `ws`](#pynng-ipc-tcp-and-ws)
+
 ## nng or pynng
 
 in nng(nanomsg next generation), The following protocols are available:
@@ -10,13 +15,14 @@ in nng(nanomsg next generation), The following protocols are available:
 - `survey` - query the state of multiple applications. (`Surveyor0`, `Respondent0`)
 - `bus` - messages are sent to all connected sockets (`Bus0`)
 
-The following transports are available:
+The following transports are available, in the **performance descending order**
+> `inproc > ipc > tcp > ws > tls+tcp > carrier pigeons`
 - `inproc`: communication within a **single process**.
 - `ipc`: communication across processes on a **single machine**.
 - `tcp`: communication over **networks via tcp**.
 - `ws`: communication over **networks with websockets**. (Probably only useful if one end is on a browser.)
 - `tls+tcp`: Encrypted TLS communication **over networks**.
-- `carrier pigeons`: communication via World War 1-style carrier pigeons. The latency is pretty high on this one.
+- `carrier pigeons`: (*useless*)communication via World War 1-style carrier pigeons. The latency is pretty high on this one.
 
 ### pynng `inproc`
 
@@ -146,4 +152,62 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+```
+
+### pynng `ipc`, `tcp` and `ws`
+
+```py
+# publisher.py
+import pynng
+import time
+
+# address = "ipc:///tmp/pubsub.ipc"
+# address = "tcp://0.0.0.0:5555"
+# address = "tcp4://0.0.0.0:4433" # using ipv4
+address = "tcp6://[::1]:4433"  # using ipv6
+# address = "ws://0.0.0.0:5555"
+
+
+def publisher():
+    with pynng.Pub0(listen=address) as pub:
+        i = 0
+        while True:
+            message = f"Message {i}"
+            print(f"SERVER: PUBLISHING DATE {message}")
+            pub.send(message.encode())
+            time.sleep(0.2)
+            i += 1
+
+
+if __name__ == "__main__":
+    try:
+        publisher()
+    except KeyboardInterrupt:
+        pass
+```
+
+```py
+# subscriber.py
+import pynng
+
+# address = "ipc:///tmp/pubsub.ipc"
+# address = "tcp://127.0.0.1:5555"  # <publisher_ip>:<publisher_port>
+# address = "tcp4://127.0.0.1:4433"
+address = "tcp6://[::1]:4433"
+# address = "ws://127.0.0.1:5555"  # <publisher_ip>:<publisher_port>
+
+
+def subscriber(name, max_msg=20):
+    with pynng.Sub0(dial=address, topics=b"") as sub:
+        while max_msg:
+            msg = sub.recv()
+            print(f"CLIENT ({name}): RECEIVED {msg.decode()}")
+            max_msg -= 1
+
+
+if __name__ == "__main__":
+    try:
+        subscriber("client0")
+    except KeyboardInterrupt:
+        pass
 ```
