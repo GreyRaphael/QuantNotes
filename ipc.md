@@ -4,6 +4,7 @@
   - [nng or pynng](#nng-or-pynng)
     - [pynng `inproc`](#pynng-inproc)
     - [pynng `ipc`, `tcp` and `ws`](#pynng-ipc-tcp-and-ws)
+    - [pynng with `tls+tcp`](#pynng-with-tlstcp)
 
 ## nng or pynng
 
@@ -211,3 +212,14 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         pass
 ```
+
+### pynng with `tls+tcp`
+
+```bash
+# generate cert.pem and key.pem
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+
+# then use mode Pair0 etc
+```
+
+[tls example](https://github.com/codypiersall/pynng/blob/master/test/test_tls.py)
