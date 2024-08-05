@@ -7,6 +7,10 @@
     - [pynng with `tls+tcp`](#pynng-with-tlstcp)
     - [pynng with `Pair0`](#pynng-with-pair0)
     - [pynng with `Req0` and `Rsp0`](#pynng-with-req0-and-rsp0)
+    - [pynng with `Pub0` and `Sub0`](#pynng-with-pub0-and-sub0)
+    - [pynng with `Push0` and `Pull0`](#pynng-with-push0-and-pull0)
+    - [pynng with `Surveyor0` and `Respondent0`](#pynng-with-surveyor0-and-respondent0)
+    - [pynng with `Bus0`](#pynng-with-bus0)
 
 ## nng or pynng
 
@@ -318,3 +322,33 @@ A `Req0` socket is paired with a `Rep0` socket and together they implement **nor
 > If a req socket attempts to do a `recv()` without first doing a `send()`, a `pynng.BadState` exception is raised.  
 > If a rsp socket attempts to do a `send()` without first doing a `recv()`, a `pynng.BadState` exception is also raised.  
 
+### pynng with `Pub0` and `Sub0`
+
+A `Pub0` socket calls `send()`, the data is published to all connected subscribers.
+> Attempting to `recv()` with a `Pub0` socket will raise a `pynng.NotSupported` exception.
+
+A `Sub0` also has one additional keyword argument: topics
+> Attempting to `send()` with a `Sub0` socket will raise a `pynng.NotSupported` exception.
+
+### pynng with `Push0` and `Pull0`
+
+> a `Push0` socket sends messages to one or more `Pull0` sockets in a round-robin fashion.
+
+Comparison
+- `Request/Response`: Focuses on direct communication between a client and a server for immediate responses.
+- `Pub/Sub`: Focuses on broadcasting messages to multiple subscribers based on topics.
+- `Push/Pull`: Focuses on distributing tasks efficiently among workers.
+
+Each pattern has its strengths and is suited for different scenarios. For instance, push/pull is great for task distribution, pub/sub is excellent for real-time updates, and request/response is perfect for direct interactions.
+
+### pynng with `Surveyor0` and `Respondent0`
+
+In this pattern, a `Surveyor0` sends a message, and gives all `Respondent0`s a chance to chime in. The amount of time a survey is valid is set by the attribute `survey_time`.
+
+### pynng with `Bus0`
+
+A `Bus0` socket sends a message to all directly connected peers. This enables creating mesh networks. Note that messages are only sent to directly connected peers. 
+
+In bus mode, all nodes on the bus can send and receive messages to and from each other. This creates a peer-to-peer communication model where each node can act as both a sender and a receiver.
+
+This pattern is useful for scenarios where multiple nodes need to communicate with each other directly without a central broker.
