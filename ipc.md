@@ -6,6 +6,7 @@
     - [pynng `ipc`, `tcp` and `ws`](#pynng-ipc-tcp-and-ws)
     - [pynng with `tls+tcp`](#pynng-with-tlstcp)
     - [pynng with `Pair0`](#pynng-with-pair0)
+    - [pynng with `Req0` and `Rsp0`](#pynng-with-req0-and-rsp0)
 
 ## nng or pynng
 
@@ -310,3 +311,10 @@ async def send_and_recv():
 run(send_and_recv)
 
 ```
+
+### pynng with `Req0` and `Rsp0`
+
+A `Req0` socket is paired with a `Rep0` socket and together they implement **normal request/response behavior**. the req socket `send()`s a request, the rep socket `recv()`s it, the rep socket `send()`s a response, and the req socket `recv()`s it.
+> If a req socket attempts to do a `recv()` without first doing a `send()`, a `pynng.BadState` exception is raised.  
+> If a rsp socket attempts to do a `send()` without first doing a `recv()`, a `pynng.BadState` exception is also raised.  
+
