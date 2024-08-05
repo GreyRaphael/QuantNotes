@@ -13,6 +13,7 @@
       - [pynng with `Push0` and `Pull0`](#pynng-with-push0-and-pull0)
       - [pynng with `Surveyor0` and `Respondent0`](#pynng-with-surveyor0-and-respondent0)
       - [pynng with `Bus0`](#pynng-with-bus0)
+    - [nng for cpp](#nng-for-cpp)
 
 ## nng or pynng
 
@@ -363,3 +364,157 @@ A `Bus0` socket sends a message to all directly connected peers. This enables cr
 In bus mode, all nodes on the bus can send and receive messages to and from each other. This creates a peer-to-peer communication model where each node can act as both a sender and a receiver.
 
 This pattern is useful for scenarios where multiple nodes need to communicate with each other directly without a central broker.
+
+### nng for cpp
+
+`vcpkg install ngg`
+
+```bash
+├── CMakeLists.txt
+├── publisher.cpp
+├── subscriber1.cpp
+└── subscriber2.cpp
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.24.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(pub publisher.cpp)
+add_executable(sub1 subscriber1.cpp)
+add_executable(sub2 subscriber2.cpp)
+
+find_package(nng CONFIG REQUIRED)
+target_link_libraries(pub PRIVATE nng::nng)
+target_link_libraries(sub1 PRIVATE nng::nng)
+target_link_libraries(sub2 PRIVATE nng::nng)
+```
+
+```cpp
+// publisher.cpp
+#include <nng/nng.h>
+#include <nng/protocol/pubsub0/pub.h>
+#include <nng/supplemental/util/platform.h>  // for sleep
+
+#include <cstdio>
+
+struct Data {
+    int id;
+    int64_t volume;
+    double amount;
+    int prices[20];
+};
+
+void publish(char const* url) {
+    nng_socket pub_sock{};
+    nng_pub0_open(&pub_sock);
+    nng_listen(pub_sock, url, NULL, 0);  // listener=NULL; flags=0 ignored
+
+    Data quote{};
+
+    size_t i = 0;
+    while (true) {
+        // mock quote
+        quote.id = i;
+        quote.volume = i * 100;
+        quote.amount = i * 111.1;
+        for (size_t j = 0; j < 10; ++j) {
+            quote.prices[j] = i * 100.2 + j;
+        }
+
+        // send quote on stack
+        nng_send(pub_sock, &quote, sizeof(Data), 0);  // flags=0, default for pub mode
+
+        printf("send quote.id=%d\n", quote.id);
+        nng_msleep(500);  // sleep 500 ms
+        ++i;
+    }
+}
+
+int main() {
+    publish("ipc:///tmp/pubsub.ipc");
+}
+```
+
+without `NNG_FLAG_ALLOC`
+
+```cpp
+// subscriber1.cpp
+#include <nng/nng.h>
+#include <nng/protocol/pubsub0/sub.h>
+
+#include <cstdio>
+
+struct Data {
+    int id;
+    int64_t volume;
+    double amount;
+    int prices[20];
+};
+
+void subscribe_not_alloc(char const* url) {
+    nng_socket sub_sock;
+    nng_sub0_open(&sub_sock);
+    // subscribe all topics
+    nng_socket_set(sub_sock, NNG_OPT_SUB_SUBSCRIBE, "", 0);
+    // nng_dialer=NULL, flags=0 ignored
+    nng_dial(sub_sock, url, NULL, 0);
+
+    Data quote{};
+    size_t sz = sizeof(Data);  // preknow size
+    for (size_t i = 0; i < 10; ++i) {
+        // 0, copy receive data(on heap) to quote on stack
+        nng_recv(sub_sock, &quote, &sz, 0);
+        printf("receive quote.id=%d\n", quote.id);
+    }
+    nng_close(sub_sock);
+}
+
+int main(int argc, char** argv) {
+    subscribe_not_alloc("ipc:///tmp/pubsub.ipc");
+}
+```
+
+with `NNG_FLAG_ALLOC`, higher performance
+
+```cpp
+// subscriber2.cpp
+#include <nng/nng.h>
+#include <nng/protocol/pubsub0/sub.h>
+
+#include <cstdio>
+
+struct Data {
+    int id;
+    int64_t volume;
+    double amount;
+    int prices[20];
+};
+
+void subscribe_alloc(char const* url) {
+    nng_socket sub_sock;
+    nng_sub0_open(&sub_sock);
+    // subscribe all topics
+    nng_socket_set(sub_sock, NNG_OPT_SUB_SUBSCRIBE, "", 0);
+    // nng_dialer=NULL, flags=0 ignored
+    nng_dial(sub_sock, url, NULL, 0);
+
+    Data* quote_ptr = nullptr;
+    size_t sz;  // size get by nng_recv
+    for (size_t i = 0; i < 10; ++i) {
+        // NNG_FLAG_ALLOC, move receive data(on heap) ownership to quote_ptr
+        nng_recv(sub_sock, &quote_ptr, &sz, NNG_FLAG_ALLOC);
+        printf("receive quote.id=%d\n", quote_ptr->id);
+
+        // must release heap data, otherwise memory leak
+        nng_free(quote_ptr, sz);
+    }
+    nng_close(sub_sock);
+}
+
+int main(int argc, char** argv) {
+    subscribe_alloc("ipc:///tmp/pubsub.ipc");
+}
+```
