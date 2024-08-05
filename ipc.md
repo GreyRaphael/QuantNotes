@@ -14,6 +14,7 @@
       - [pynng with `Surveyor0` and `Respondent0`](#pynng-with-surveyor0-and-respondent0)
       - [pynng with `Bus0`](#pynng-with-bus0)
     - [nng for cpp](#nng-for-cpp)
+  - [`cpp-ipc` usage](#cpp-ipc-usage)
 
 ## nng or pynng
 
@@ -516,5 +517,113 @@ void subscribe_alloc(char const* url) {
 
 int main(int argc, char** argv) {
     subscribe_alloc("ipc:///tmp/pubsub.ipc");
+}
+```
+
+## `cpp-ipc` usage
+
+[cpp-ipc](https://github.com/mutouyun/cpp-ipc): A high-performance IPC library using shared memory on Linux/Windows.
+> `vcpkg install cpp-ipc`
+
+modes: `relat:single`, `relat:multi`, `trans:broadcast`, `trans:unicast`
+- `using route = chan<relat::single, relat::multi, trans::broadcast>;`
+- `using channel = chan<relat::multi, relat::multi, trans::broadcast>;`
+
+```bash
+├── CMakeLists.txt
+├── consumer.cpp
+└── producer.cpp
+```
+
+```bash
+# how to run
+./producer
+
+# consumer1
+./consumer
+# consumer2
+./consumer
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.24.0)
+project(proj5 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(producer producer.cpp)
+add_executable(consumer consumer.cpp)
+
+find_package(cpp-ipc CONFIG REQUIRED)
+target_link_libraries(producer PRIVATE cpp-ipc::ipc)
+target_link_libraries(consumer PRIVATE cpp-ipc::ipc)
+
+find_package(fmt CONFIG REQUIRED)
+target_link_libraries(consumer PRIVATE fmt::fmt)
+```
+
+```cpp
+// producer.cpp
+#include <chrono>
+#include <iostream>
+#include <thread>
+
+#include "libipc/ipc.h"
+
+struct Stock {
+    int id;
+    int volume;
+    double amount;
+    double prices[10];
+};
+
+void do_send(int num, int interval) {
+    // single produer multiple consumer
+    ipc::route ipc{"ipc", ipc::sender};
+    Stock stock{};
+    for (size_t i = 0; i < num; ++i) {
+        stock.id = i * 100;
+        stock.amount = i * 100.1;
+
+        std::cout << "send size: " << sizeof(Stock) << "\n";
+        ipc.send(&stock, sizeof(Stock));
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(interval));
+    }
+}
+
+int main() {
+    do_send(20, 1000);
+}
+```
+
+```cpp
+// consumer.cpp
+
+#include <fmt/core.h>
+
+#include "libipc/ipc.h"
+
+struct Stock {
+    int id;
+    int volume;
+    double amount;
+    double prices[10];
+};
+
+void do_recv(int interval) {
+    ipc::route ipc{"ipc", ipc::receiver};
+    while (true) {
+        auto buf = ipc.recv(interval);  // if timeout, buff_t is empty
+        if (!buf.empty()) {
+            auto stock = buf.get<Stock *>();
+            fmt::println("buf size={}, id={}, amount={}", buf.size(), stock->id, stock->amount);
+        }
+        fmt::println("no data comes...");
+    }
+}
+
+int main() {
+    do_recv(500);
 }
 ```
