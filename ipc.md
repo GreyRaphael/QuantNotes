@@ -264,3 +264,49 @@ with Pair0(dial=address) as s1:
         s1.send(msg_out)
         print(f">> {msg_out}")
 ```
+
+async version
+
+```python
+# sender.py
+from trio import run
+from pynng import Pair0
+
+async def send_and_recv():
+    address = "tcp://127.0.0.1:13131"
+    # in real code you should also pass recv_timeout and/or send_timeout
+    with Pair0(listen=address, recv_timeout=3000) as s0:
+        for i in range(20):
+            msg_out = f"ping-{i}".encode()
+            await s0.asend(msg_out)
+            print(">>", msg_out)
+
+            print("<<", await s0.arecv())
+
+
+run(send_and_recv)
+```
+
+```python
+# receiver.py
+from trio import run, sleep
+from pynng import Pair0
+
+async def send_and_recv():
+    address = "tcp://127.0.0.1:13131"
+    # in real code you should also pass recv_timeout and/or send_timeout
+    with Pair0(dial=address) as s1:
+        for _ in range(10):
+            # await sleep(1)
+            sleep(1)
+            msg_in = await s1.arecv()
+            print("<<", msg_in)
+
+            value = int(msg_in[5:]) * 1000
+            msg_out = f"xong-{value}".encode()
+            await s1.asend(msg_out)
+
+
+run(send_and_recv)
+
+```
