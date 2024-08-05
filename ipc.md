@@ -2,15 +2,17 @@
 
 - [Inter-Process Communication](#inter-process-communication)
   - [nng or pynng](#nng-or-pynng)
-    - [pynng `inproc`](#pynng-inproc)
-    - [pynng `ipc`, `tcp` and `ws`](#pynng-ipc-tcp-and-ws)
-    - [pynng with `tls+tcp`](#pynng-with-tlstcp)
-    - [pynng with `Pair0`](#pynng-with-pair0)
-    - [pynng with `Req0` and `Rsp0`](#pynng-with-req0-and-rsp0)
-    - [pynng with `Pub0` and `Sub0`](#pynng-with-pub0-and-sub0)
-    - [pynng with `Push0` and `Pull0`](#pynng-with-push0-and-pull0)
-    - [pynng with `Surveyor0` and `Respondent0`](#pynng-with-surveyor0-and-respondent0)
-    - [pynng with `Bus0`](#pynng-with-bus0)
+    - [pynng supported transports](#pynng-supported-transports)
+      - [pynng `inproc`](#pynng-inproc)
+      - [pynng `ipc`, `tcp` and `ws`](#pynng-ipc-tcp-and-ws)
+      - [pynng with `tls+tcp`](#pynng-with-tlstcp)
+    - [pynng supported protocols](#pynng-supported-protocols)
+      - [pynng with `Pair0`](#pynng-with-pair0)
+      - [pynng with `Req0` and `Rsp0`](#pynng-with-req0-and-rsp0)
+      - [pynng with `Pub0` and `Sub0`](#pynng-with-pub0-and-sub0)
+      - [pynng with `Push0` and `Pull0`](#pynng-with-push0-and-pull0)
+      - [pynng with `Surveyor0` and `Respondent0`](#pynng-with-surveyor0-and-respondent0)
+      - [pynng with `Bus0`](#pynng-with-bus0)
 
 ## nng or pynng
 
@@ -31,7 +33,9 @@ The following transports are available, in the **performance descending order**
 - `tls+tcp`: Encrypted TLS communication **over networks**.
 - `carrier pigeons`: (*useless*)communication via World War 1-style carrier pigeons. The latency is pretty high on this one.
 
-### pynng `inproc`
+### pynng supported transports
+
+#### pynng `inproc`
 
 pub/sub without topics
 
@@ -161,7 +165,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### pynng `ipc`, `tcp` and `ws`
+#### pynng `ipc`, `tcp` and `ws`
 
 ```py
 # publisher.py
@@ -219,7 +223,7 @@ if __name__ == "__main__":
         pass
 ```
 
-### pynng with `tls+tcp`
+#### pynng with `tls+tcp`
 
 ```bash
 # generate cert.pem and key.pem
@@ -230,7 +234,9 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -node
 
 [tls example](https://github.com/codypiersall/pynng/blob/master/test/test_tls.py)
 
-### pynng with `Pair0`
+### pynng supported protocols
+
+#### pynng with `Pair0`
 
 > `Pair0`, A socket for bidrectional, one-to-one communication, with a single partner.
 
@@ -316,13 +322,13 @@ run(send_and_recv)
 
 ```
 
-### pynng with `Req0` and `Rsp0`
+#### pynng with `Req0` and `Rsp0`
 
 A `Req0` socket is paired with a `Rep0` socket and together they implement **normal request/response behavior**. the req socket `send()`s a request, the rep socket `recv()`s it, the rep socket `send()`s a response, and the req socket `recv()`s it.
 > If a req socket attempts to do a `recv()` without first doing a `send()`, a `pynng.BadState` exception is raised.  
 > If a rsp socket attempts to do a `send()` without first doing a `recv()`, a `pynng.BadState` exception is also raised.  
 
-### pynng with `Pub0` and `Sub0`
+#### pynng with `Pub0` and `Sub0`
 
 A `Pub0` socket calls `send()`, the data is published to all connected subscribers.
 > Attempting to `recv()` with a `Pub0` socket will raise a `pynng.NotSupported` exception.
@@ -330,7 +336,7 @@ A `Pub0` socket calls `send()`, the data is published to all connected subscribe
 A `Sub0` also has one additional keyword argument: topics
 > Attempting to `send()` with a `Sub0` socket will raise a `pynng.NotSupported` exception.
 
-### pynng with `Push0` and `Pull0`
+#### pynng with `Push0` and `Pull0`
 
 > a `Push0` socket sends messages to one or more `Pull0` sockets in a round-robin fashion.
 
@@ -341,11 +347,11 @@ Comparison
 
 Each pattern has its strengths and is suited for different scenarios. For instance, push/pull is great for task distribution, pub/sub is excellent for real-time updates, and request/response is perfect for direct interactions.
 
-### pynng with `Surveyor0` and `Respondent0`
+#### pynng with `Surveyor0` and `Respondent0`
 
 In this pattern, a `Surveyor0` sends a message, and gives all `Respondent0`s a chance to chime in. The amount of time a survey is valid is set by the attribute `survey_time`.
 
-### pynng with `Bus0`
+#### pynng with `Bus0`
 
 A `Bus0` socket sends a message to all directly connected peers. This enables creating mesh networks. Note that messages are only sent to directly connected peers. 
 
