@@ -5,11 +5,12 @@
     - [pynng `inproc`](#pynng-inproc)
     - [pynng `ipc`, `tcp` and `ws`](#pynng-ipc-tcp-and-ws)
     - [pynng with `tls+tcp`](#pynng-with-tlstcp)
+    - [pynng with `Pair0`](#pynng-with-pair0)
 
 ## nng or pynng
 
 in nng(nanomsg next generation), The following protocols are available:
-- `pair` - simple one-to-one communication. (`Pair0`, `Pair1`.)
+- `pair` - simple one-to-one communication. (`Pair0`, `Pair1`.), `Pair1` is deprecated.
 - `request/response` - I ask, you answer. (`Req0`, `Rep0`)
 - `pub/sub` - subscribers are notified of topics they are interested in. (`Pub0`, `Sub0`)
 - `pipeline`, aka push/pull - load balancing. (`Push0`, `Pull0`)
@@ -223,3 +224,43 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -node
 ```
 
 [tls example](https://github.com/codypiersall/pynng/blob/master/test/test_tls.py)
+
+### pynng with `Pair0`
+
+> `Pair0`, A socket for bidrectional, one-to-one communication, with a single partner.
+
+```py
+# sender.py
+from pynng import Pair0
+
+address = "tcp://127.0.0.1:13131"
+
+with Pair0(listen=address, recv_timeout=3000) as s0:
+    for i in range(20):
+        msg_out = f"ping-{i}".encode()
+        s0.send(msg_out)  # send bytes
+        print(f">> {msg_out}")
+
+        msg_in = s0.recv()
+        print(f"<< {msg_in}")  # recv bytes
+```
+
+```py
+# receiver.py
+from pynng import Pair0
+import time
+
+address = "tcp://127.0.0.1:13131"
+
+with Pair0(dial=address) as s1:
+    for _ in range(10):
+        msg_in = s1.recv()
+        print(f"<< {msg_in}")
+
+        value = int(msg_in[5:]) + 1000  # processing logic
+        time.sleep(0.5)
+
+        msg_out = f"xong-{value}".encode()
+        s1.send(msg_out)
+        print(f">> {msg_out}")
+```
