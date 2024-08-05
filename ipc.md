@@ -167,6 +167,11 @@ if __name__ == "__main__":
 
 #### pynng `ipc`, `tcp` and `ws`
 
+The `ipc` transport provides communication support between sockets within different processes on the same host. 
+- For POSIX platforms, this is implemented using `UNIX domain sockets`. 
+- For Windows, this is implemented using `Windows Named Pipes`. 
+- Other platforms may have different implementation strategies.
+
 ```py
 # publisher.py
 import pynng
