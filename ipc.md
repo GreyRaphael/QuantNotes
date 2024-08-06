@@ -15,6 +15,8 @@
       - [pynng with `Bus0`](#pynng-with-bus0)
     - [nng for cpp](#nng-for-cpp)
   - [`cpp-ipc` usage](#cpp-ipc-usage)
+  - [parse bytes](#parse-bytes)
+    - [Rust parse bytes](#rust-parse-bytes)
 
 ## nng or pynng
 
@@ -625,5 +627,33 @@ void do_recv(int interval) {
 
 int main() {
     do_recv(500);
+}
+```
+
+## parse bytes
+
+### Rust parse bytes
+
+```rs
+// as rust auto memory alignment, but C don't
+// so, must repr(C), because memory alignment;
+#[repr(C)]
+#[derive(Debug)]
+struct Data {
+    id: i32,
+    volume: i64,
+    amount: f64,
+    prices: [i32; 20],
+}
+
+fn main() {
+    let byte_data: &[u8]=b"e\x00\x00\x00\x00\x00\x00\x00t'\x00\x00\x00\x00\x00\x00\xcc\xcc\xcc\xcc\x8c\xea\xc5@\x88'\x00\x00\x89'\x00\x00\x8a'\x00\x00\x8b'\x00\x00\x8c'\x00\x00\x8d'\x00\x00\x8e'\x00\x00\x8f'\x00\x00\x90'\x00\x00\x91'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+
+    // method1: copies the data from the location pointed to by the pointer into a newly constructed Data object.
+    let data1: Data = unsafe { std::ptr::read(byte_data.as_ptr() as *const _) };
+    // method2: cast a byte pointer into a reference to Data. This doesn't actually move or copy the data
+    let data2: &Data = unsafe { std::mem::transmute(byte_data.as_ptr()) };
+
+    println!("{:?}\n{:?}", data1, data2);
 }
 ```
