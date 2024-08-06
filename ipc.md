@@ -16,7 +16,8 @@
     - [nng for cpp](#nng-for-cpp)
   - [`cpp-ipc` usage](#cpp-ipc-usage)
   - [parse bytes](#parse-bytes)
-    - [Rust parse bytes](#rust-parse-bytes)
+    - [Rust serilize/deserilize bytes](#rust-serilizedeserilize-bytes)
+    - [python serilize/deserilize bytes](#python-serilizedeserilize-bytes)
 
 ## nng or pynng
 
@@ -632,7 +633,7 @@ int main() {
 
 ## parse bytes
 
-### Rust parse bytes
+### Rust serilize/deserilize bytes
 
 ```rs
 // as rust auto memory alignment, but C don't
@@ -682,4 +683,28 @@ fn main() {
         println!("{:?}\n{:?}", quote, data1);
     }
 }
+```
+
+### python serilize/deserilize bytes
+
+```py
+import struct
+
+# struct Data {
+#     int id;
+#     int64_t volume;
+#     double amount;
+#     int prices[20];
+# };
+
+origin_bytes = b"e\x00\x00\x00\x00\x00\x00\x00t'\x00\x00\x00\x00\x00\x00\xcc\xcc\xcc\xcc\x8c\xea\xc5@\x88'\x00\x00\x89'\x00\x00\x8a'\x00\x00\x8b'\x00\x00\x8c'\x00\x00\x8d'\x00\x00\x8e'\x00\x00\x8f'\x00\x00\x90'\x00\x00\x91'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
+
+# bytes to tuple
+data_fmt = "i q d 20i"
+data_tuple = struct.unpack(data_fmt, origin_bytes)
+
+# tuple to bytes
+final_bytes = struct.pack(data_fmt, *data_tuple)
+print(origin_bytes == final_bytes)  # True
 ```
