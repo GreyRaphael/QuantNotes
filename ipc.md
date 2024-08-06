@@ -638,7 +638,7 @@ int main() {
 // as rust auto memory alignment, but C don't
 // so, must repr(C), because memory alignment;
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Data {
     id: i32,
     volume: i64,
@@ -647,13 +647,39 @@ struct Data {
 }
 
 fn main() {
-    let byte_data: &[u8]=b"e\x00\x00\x00\x00\x00\x00\x00t'\x00\x00\x00\x00\x00\x00\xcc\xcc\xcc\xcc\x8c\xea\xc5@\x88'\x00\x00\x89'\x00\x00\x8a'\x00\x00\x8b'\x00\x00\x8c'\x00\x00\x8d'\x00\x00\x8e'\x00\x00\x8f'\x00\x00\x90'\x00\x00\x91'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+    // bytes to struct
+    {
+        let byte_data: &[u8]=b"e\x00\x00\x00\x00\x00\x00\x00t'\x00\x00\x00\x00\x00\x00\xcc\xcc\xcc\xcc\x8c\xea\xc5@\x88'\x00\x00\x89'\x00\x00\x8a'\x00\x00\x8b'\x00\x00\x8c'\x00\x00\x8d'\x00\x00\x8e'\x00\x00\x8f'\x00\x00\x90'\x00\x00\x91'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+        println!("{:?}", byte_data);
 
-    // method1: copies the data from the location pointed to by the pointer into a newly constructed Data object.
-    let data1: Data = unsafe { std::ptr::read(byte_data.as_ptr() as *const _) };
-    // method2: cast a byte pointer into a reference to Data. This doesn't actually move or copy the data
-    let data2: &Data = unsafe { std::mem::transmute(byte_data.as_ptr()) };
+        // method1: copies the data from the location pointed to by the pointer into a newly constructed Data object.
+        let data1: Data = unsafe { std::ptr::read(byte_data.as_ptr() as *const _) };
+        // method2: cast a byte pointer into a reference to Data. This doesn't actually move or copy the data
+        let data2: &Data = unsafe { std::mem::transmute(byte_data.as_ptr()) };
 
-    println!("{:?}\n{:?}", data1, data2);
+        println!("{:?}\n{:?}", data1, data2);
+        println!("-------------------");
+    }
+    // struct to bytes
+    {
+        let quote = Data {
+            id: 101,
+            volume: 10100,
+            amount: 11221.099999999999,
+            ..Default::default()
+        };
+        // Safe way to convert struct to bytes
+        let data_bytes: &[u8] = unsafe {
+            std::slice::from_raw_parts(
+                (&quote as *const Data) as *const u8,
+                std::mem::size_of::<Data>(),
+            )
+        };
+
+        // Use data_bytes as needed
+        println!("{:?}", data_bytes);
+        let data1: Data = unsafe { std::ptr::read(data_bytes.as_ptr() as *const _) };
+        println!("{:?}\n{:?}", quote, data1);
+    }
 }
 ```
