@@ -16,9 +16,9 @@
     - [nng for cpp](#nng-for-cpp)
   - [`cpp-ipc` usage](#cpp-ipc-usage)
   - [parse bytes](#parse-bytes)
-    - [Rust serilize/deserilize bytes](#rust-serilizedeserilize-bytes)
-    - [python serilize/deserilize bytes](#python-serilizedeserilize-bytes)
-    - [golang serilize/deserilize bytes](#golang-serilizedeserilize-bytes)
+    - [Rust serialize/deserialize bytes](#rust-serializedeserialize-bytes)
+    - [python serialize/deserialize bytes](#python-serializedeserialize-bytes)
+    - [golang serialize/deserialize bytes](#golang-serializedeserialize-bytes)
 
 ## nng or pynng
 
@@ -634,7 +634,7 @@ int main() {
 
 ## parse bytes
 
-### Rust serilize/deserilize bytes
+### Rust serialize/deserialize bytes
 
 ```rs
 // as rust auto memory alignment, but C don't
@@ -686,7 +686,7 @@ fn main() {
 }
 ```
 
-### python serilize/deserilize bytes
+### python serialize/deserialize bytes
 
 ```py
 import struct
@@ -710,7 +710,7 @@ final_bytes = struct.pack(data_fmt, *data_tuple)
 print(origin_bytes == final_bytes)  # True
 ```
 
-### golang serilize/deserilize bytes
+### golang serialize/deserialize bytes
 
 ```go
 package main
