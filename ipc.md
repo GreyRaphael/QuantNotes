@@ -18,6 +18,7 @@
   - [parse bytes](#parse-bytes)
     - [Rust serilize/deserilize bytes](#rust-serilizedeserilize-bytes)
     - [python serilize/deserilize bytes](#python-serilizedeserilize-bytes)
+    - [golang serilize/deserilize bytes](#golang-serilizedeserilize-bytes)
 
 ## nng or pynng
 
@@ -707,4 +708,80 @@ data_tuple = struct.unpack(data_fmt, origin_bytes)
 # tuple to bytes
 final_bytes = struct.pack(data_fmt, *data_tuple)
 print(origin_bytes == final_bytes)  # True
+```
+
+### golang serilize/deserilize bytes
+
+```go
+package main
+
+import (
+	"fmt"
+	"os"
+	"unsafe"
+)
+
+type Data struct {
+	ID     int32
+	Volume int64
+	Amount float64
+	Prices [20]int32
+}
+
+func main() {
+	// struct to bytes
+	{
+		data := Data{
+			ID:     123,
+			Volume: 456,
+			Amount: 789.12,
+			Prices: [20]int32{1, 2, 3}, // rest are zero-initialized
+		}
+
+		dataSize := unsafe.Sizeof(data)
+		// Get the byte slice from struct
+		dataSlice := (*[1 << 30]byte)(unsafe.Pointer(&data))[:dataSize:dataSize]
+		fmt.Println("size is", dataSize)
+
+		// Create or open the file
+		file, err := os.Create("output_cstyle.bin")
+		if err != nil {
+			fmt.Println("Cannot create file:", err)
+			return
+		}
+		defer file.Close()
+
+		// Write the byte slice to the file
+		if _, err := file.Write(dataSlice); err != nil {
+			fmt.Println("Failed to write to file:", err)
+			return
+		}
+
+		fmt.Println("Data written to file in C-style.")
+	}
+	// bytes to struct
+	{
+		// Simulate reading this from a file or similar source
+		file, err := os.Open("output_cstyle.bin")
+		if err != nil {
+			fmt.Println("Error opening file:", err)
+			return
+		}
+		defer file.Close()
+
+		// Allocate space for the struct
+		data := Data{}
+		// Read data into the struct memory directly
+		dataSize := unsafe.Sizeof(data)
+		fmt.Println("size is", dataSize)
+		dataPointer := (*[1 << 30]byte)(unsafe.Pointer(&data))[:dataSize:dataSize]
+		if _, err := file.Read(dataPointer); err != nil {
+			fmt.Println("Failed to read data:", err)
+			return
+		}
+
+		fmt.Printf("Decoded Data: %+v\n", data)
+	}
+
+}
 ```
