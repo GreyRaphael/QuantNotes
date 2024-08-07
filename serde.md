@@ -8,6 +8,7 @@
     - [golang serialize/deserialize bytes](#golang-serializedeserialize-bytes)
   - [serde with `flatbuffers`](#serde-with-flatbuffers)
     - [serde for python](#serde-for-python)
+    - [serde for golang](#serde-for-golang)
 
 
 ## parse bytes manually
@@ -292,4 +293,11 @@ if __name__ == "__main__":
 
     print(len(buf), TickData.SizeOf())
     bytes2object(buf, 0)
+```
+
+### serde for golang
+
+```bash
+./flatc datatypes.fbs --go
+# error, not supported now
 ```
