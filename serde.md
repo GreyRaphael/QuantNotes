@@ -2,12 +2,67 @@
 
 - [serialize and deserialize](#serialize-and-deserialize)
   - [parse bytes manually](#parse-bytes-manually)
+    - [cpp serialize/deserialize bytes](#cpp-serializedeserialize-bytes)
     - [Rust serialize/deserialize bytes](#rust-serializedeserialize-bytes)
     - [python serialize/deserialize bytes](#python-serializedeserialize-bytes)
     - [golang serialize/deserialize bytes](#golang-serializedeserialize-bytes)
 
 
 ## parse bytes manually
+
+### cpp serialize/deserialize bytes
+
+```cpp
+#include <cstdio>
+#include <iostream>
+
+struct Data {
+    int id;
+    long volume;
+    double amount;
+    int prices[20];
+};
+
+int main() {
+    // bytes to struct
+    {
+        // auto byte_str = (void *)"e\x00\x00\x00\x00\x00\x00\x00t'\x00\x00\x00\x00\x00\x00\xcc\xcc\xcc\xcc\x8c\xea\xc5@\x88'\x00\x00\x89'\x00\x00\x8a'\x00\x00\x8b'\x00\x00\x8c'\x00\x00\x8d'\x00\x00\x8e'\x00\x00\x8f'\x00\x00\x90'\x00\x00\x91'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+        // same the above
+        char byte_str[] = "\x65\x00\x00\x00\x00\x00\x00\x00\x74\x27\x00\x00\x00\x00\x00\x00\xcd\xcc\xcc\xcc\x8c\xea\xc5\x40\x88\x27\x00\x00\x89\x27\x00\x00\x8a\x27\x00\x00\x8b\x27\x00\x00\x8c\x27\x00\x00\x8d\x27\x00\x00\x8e\x27\x00\x00\x8f\x27\x00\x00\x90\x27\x00\x00\x91\x27\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+        auto ptr = reinterpret_cast<Data *>(byte_str);
+        std::cout << ptr->id << '\n';
+        std::cout << ptr->volume << '\n';
+        std::cout << ptr->amount << '\n';
+        for (auto &&e : ptr->prices) {
+            std::cout << e << ',';
+        }
+        std::cout << '\n';
+    }
+    // struct to bytes
+    {
+        Data quote{
+            101,
+            10100,
+            11221.1,
+            10120,
+            10121,
+            10122,
+            10123,
+            10124,
+            10125,
+            10126,
+            10127,
+            10128,
+            10129,
+            0,
+            0};
+        auto ptr = reinterpret_cast<unsigned char *>(&quote);
+        for (size_t i = 0; i < sizeof(Data); ++i) {
+            printf("\\x%02x", ptr[i]);
+        }
+    }
+}
+```
 
 ### Rust serialize/deserialize bytes
 
