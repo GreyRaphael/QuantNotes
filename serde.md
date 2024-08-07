@@ -488,6 +488,7 @@ target_link_libraries(pub PRIVATE fmt::fmt)
 
 #include <array>
 #include <cstdint>
+#include <bit>  // for std::bit_cast
 
 #include "datatypes_generated.h"
 
@@ -512,13 +513,9 @@ void publish(char const* url) {
         // send quote on stack
         nng_send(pub_sock, &quote, sizeof(TickData), 0);  // flags=0, default for pub mode
 
-        std::string sym_str;
-        sym_str.reserve(symbols.size());
-        for (auto&& c : *quote.symbol()) {
-            sym_str.push_back(c);
-        }
-
-        fmt::println(">> size={}, symbol={}, vol={}", sizeof(TickData), sym_str, quote.volume());
+        // fmt::println(">> size={}, symbol={}, vol={}", sizeof(TickData), fmt::join(reinterpret_cast<std::array<char, 6>&>(symbols), ""), quote.volume());
+        // fmt::println(">> size={}, symbol={}, vol={}", sizeof(TickData), fmt::join(*reinterpret_cast<std::array<char, 6> const*>(quote.symbol()), ""), quote.volume());
+        fmt::println(">> size={}, symbol={}, vol={}", sizeof(TickData), fmt::join(*std::bit_cast<std::array<char, 6>*>(quote.symbol()), ""), quote.volume());
         nng_msleep(500);  // sleep 500 ms
         ++i;
     }
