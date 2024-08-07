@@ -11,6 +11,7 @@
     - [serde for golang](#serde-for-golang)
     - [serde for cpp](#serde-for-cpp)
     - [serde for rust](#serde-for-rust)
+    - [serde between cpp and python with nng](#serde-between-cpp-and-python-with-nng)
 
 
 ## parse bytes manually
@@ -438,4 +439,116 @@ fn main() {
     let tick_data: &TickData = unsafe { std::mem::transmute(bytes.as_ptr()) };
     println!("{:?}", tick_data);
 }
+```
+
+### serde between cpp and python with nng
+
+how to serde with flatbuffers for cpp and python with nng
+- downlod [flatc](https://github.com/google/flatbuffers/releases)
+- `vcpkg install nng fmt flatbuffers`
+- `pip install pynng flatbuffers`
+- `./flatc datatypes.fbs --cpp --python`
+
+
+```bash
+├── CMakeLists.txt
+├── publisher.cpp
+├── subscriber.py
+├── datatypes.fbs # schema
+├── flatc
+├── datatypes_generated.h # generated
+└── TickData.py # generated
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.24.0)
+project(proj VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(pub publisher.cpp)
+
+find_package(nng CONFIG REQUIRED)
+target_link_libraries(pub PRIVATE nng::nng)
+
+find_package(flatbuffers CONFIG REQUIRED)
+target_link_libraries(pub PRIVATE flatbuffers::flatbuffers)
+
+find_package(fmt CONFIG REQUIRED)
+target_link_libraries(pub PRIVATE fmt::fmt)
+```
+
+```cpp
+// publisher.cpp
+#include <fmt/core.h>
+#include <fmt/ranges.h>
+#include <nng/nng.h>
+#include <nng/protocol/pubsub0/pub.h>
+#include <nng/supplemental/util/platform.h>  // for sleep
+
+#include <array>
+#include <cstdint>
+
+#include "datatypes_generated.h"
+
+void publish(char const* url) {
+    nng_socket pub_sock{};
+    nng_pub0_open(&pub_sock);
+    nng_listen(pub_sock, url, NULL, 0);  // listener=NULL; flags=0 ignored
+
+    std::array<int8_t, 6> symbols{};
+    std::array<float, 10> prices{};
+
+    int64_t i = 0;
+    while (true) {
+        // mock quote
+        // sprintf(symbol.data(), "%06lu", i);
+        fmt::format_to(symbols.data(), "{:06d}", i);
+        for (size_t j = 0; j < 10; ++j) {
+            prices[j] = 100.2 * i + j;
+        }
+        TickData quote{symbols, 1000 * i, 100.2 * i, prices};
+
+        // send quote on stack
+        nng_send(pub_sock, &quote, sizeof(TickData), 0);  // flags=0, default for pub mode
+
+        std::string sym_str;
+        sym_str.reserve(symbols.size());
+        for (auto&& c : *quote.symbol()) {
+            sym_str.push_back(c);
+        }
+
+        fmt::println(">> size={}, symbol={}, vol={}", sizeof(TickData), sym_str, quote.volume());
+        nng_msleep(500);  // sleep 500 ms
+        ++i;
+    }
+}
+
+int main() {
+    publish("ipc:///tmp/pubsub.ipc");
+}
+```
+
+```py
+# receiver.py
+import pynng
+from TickData import TickData
+
+address = "ipc:///tmp/pubsub.ipc"
+
+
+def subscribe(max_msg=10):
+    with pynng.Sub0(dial=address, topics=b"") as sub:
+        tick = TickData()
+        for _ in range(max_msg):
+            msg = sub.recv()
+            tick.Init(msg, 0)
+            print(f">> {tick.SizeOf()} bytes, ", bytes(tick.Symbol()), tick.Volume(), tick.Amount(), tick.Prices())
+
+
+if __name__ == "__main__":
+    try:
+        subscribe()
+    except KeyboardInterrupt:
+        pass
 ```
