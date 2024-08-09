@@ -4,7 +4,7 @@
   - [RPC by pycapnp](#rpc-by-pycapnp)
     - [simple invoke](#simple-invoke)
     - [callback invoke](#callback-invoke)
-    - [sync send order](#sync-send-order)
+    - [sync and async order system](#sync-and-async-order-system)
 
 
 ## RPC by pycapnp
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     asyncio.run(capnp.run(cmd_main()))
 ```
 
-### sync send order
+### sync and async order system
 
 ```bash
 ├── trade.capnp
@@ -155,6 +155,7 @@ import trade_capnp
 import asyncio
 import random
 
+
 class TradeApiImpl(trade_capnp.TradeApi.Server):
     async def reqOrder(self, orderId, _context, **kwargs):
         # print(kwargs)
@@ -162,7 +163,7 @@ class TradeApiImpl(trade_capnp.TradeApi.Server):
         print(f"server get orderid: {orderId}")
         for i in range(3):  # Random number of responses
             await asyncio.sleep(random.randint(1, 5) * 0.2)  # Random delay
-            await callback.onOrder(info=f"inserted {i*orderId}")  # Send a random result
+            await callback.onOrder(info=f"inserted {i}x{orderId}={i*orderId}")  # Send a random result
 
     async def reqCancel(self, orderId, _context, **kwargs):
         print(kwargs)
@@ -170,7 +171,7 @@ class TradeApiImpl(trade_capnp.TradeApi.Server):
         for i in range(3):  # Random number of responses
             await asyncio.sleep(random.randint(1, 5) * 0.2)  # Random delay
             print(f"server get cancel orderid: {i}")
-            await callback.onCancel(info=f"canceled {i*orderId}")  # Send a random result
+            await callback.onCancel(info=f"canceled {i}x{orderId}={i*orderId}")  # Send a random result
 
 
 async def new_connection(stream):
@@ -193,6 +194,7 @@ import asyncio
 import capnp
 import trade_capnp
 
+
 class CallbackImpl(trade_capnp.TradeSpi.Server):
     async def onOrder(self, info, **kwargs):
         print(f"Callback of onOrder: {info}")
@@ -206,12 +208,21 @@ async def main(connection):
     trader = client.bootstrap().cast_as(trade_capnp.TradeApi)
     callback = CallbackImpl()
 
-    # Send 3 orders
-    for i in range(3):
-        print(f"send orderid: {10000*i}")
-        await trader.reqOrder(10000 * i, cb=callback)
+    # async Send 3 orders
+    order_tasks = [trader.reqOrder(10000 * i, cb=callback) for i in range(3)]
+    await asyncio.gather(*order_tasks)
+    # sleep
+    await asyncio.sleep(5)
+    # async Cancel 3 orders
+    cancel_tasks = [trader.reqCancel(10000 * i, cb=callback) for i in range(3)]
+    await asyncio.gather(*cancel_tasks)
 
-    # Send 1 order
+    # # sync Send 3 orders
+    # for i in range(3):
+    #     print(f"send orderid: {10000*i}")
+    #     await trader.reqOrder(10000 * i, cb=callback)
+
+    # sync Send 1 order
     # await trader.reqOrder(100235, cb=callback)
     # await trader.reqCancel(100235, cb=callback)
 
