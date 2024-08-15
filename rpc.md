@@ -5,6 +5,7 @@
     - [simple invoke](#simple-invoke)
     - [callback invoke](#callback-invoke)
     - [sync and async order system](#sync-and-async-order-system)
+  - [RPC by capnp in C++](#rpc-by-capnp-in-c)
 
 
 ## RPC by pycapnp
@@ -233,4 +234,145 @@ async def cmd_main():
 
 if __name__ == "__main__":
     asyncio.run(capnp.run(cmd_main()))
+```
+
+## RPC by capnp in C++
+
+- `vcpkg install capnproto`
+- download [capnp tools](https://capnproto.org/capnp-tool.html), `capnp compile -oc++ .\trade.capnp`
+
+```bash
+.
+├── CMakeLists.txt
+├── client.cpp
+├── server.cpp
+├── trade.capnp
+├── trade.capnp.c++ # generated
+└── trade.capnp.h # generated
+```
+
+[]
+
+```capnp
+# trade.capnp
+@0x85150b117366d14b;
+
+interface TradeSpi {
+  onOrder @0 (info: Text) -> ();
+  onCancel @1 (info: Text) -> ();
+}
+
+interface TradeApi {
+    reqOrder @0 (orderId:Int64, cb: TradeSpi) -> ();
+    reqCancel @1 (orderId:Int64, cb: TradeSpi) -> ();
+}
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.24.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(s2 server.cpp trade.capnp.c++)
+add_executable(c2 client.cpp trade.capnp.c++)
+
+# this is heuristically generated, and may not be correct
+find_package(CapnProto CONFIG REQUIRED)
+# note: 6 additional targets are not displayed.
+target_link_libraries(s2 PRIVATE CapnProto::kj CapnProto::capnp CapnProto::capnp-rpc)
+target_link_libraries(c2 PRIVATE CapnProto::kj CapnProto::capnp CapnProto::capnp-rpc)
+```
+
+```cpp
+// client.py
+#include <capnp/ez-rpc.h>
+
+#include <iostream>
+
+#include "trade.capnp.h"
+
+class TradeSpiImpl : public TradeSpi::Server {
+    ::kj::Promise<void> onOrder(OnOrderContext context) override {
+        auto result = context.getParams().getInfo();
+        std::cout << "onOrder: " << result.cStr() << '\n';
+        return kj::READY_NOW;
+    }
+
+    ::kj::Promise<void> onCancel(OnCancelContext context) override {
+        auto result = context.getParams().getInfo();
+        std::cout << "onCancel: " << result.cStr() << '\n';
+        return kj::READY_NOW;
+    }
+};
+
+int main(int argc, char const *argv[]) {
+    capnp::EzRpcClient client{"localhost:8888"};
+    auto trader = client.getMain<TradeApi>();
+
+    kj::Vector<kj::Promise<void>> promises;
+    promises.reserve(40000);
+
+    for (size_t i = 0; i < 20000; ++i) {
+        auto req = trader.reqOrderRequest();
+        req.setCb(kj::heap<TradeSpiImpl>());
+        req.setOrderId(10000 + i);
+        // req.send().wait(client.getWaitScope());
+        promises.add(req.send().ignoreResult());
+    }
+    for (size_t i = 0; i < 20000; ++i) {
+        auto req = trader.reqCancelRequest();
+        req.setCb(kj::heap<TradeSpiImpl>());
+        req.setOrderId(10000 + i);
+        // req.send().wait(client.getWaitScope());
+        promises.add(req.send().ignoreResult());
+    }
+    for (auto &&e : promises) {
+        e.wait(client.getWaitScope());
+    }
+}
+```
+
+```cpp
+// server.cpp
+#include <capnp/ez-rpc.h>
+
+#include <format>
+#include <iostream>
+
+#include "trade.capnp.h"
+
+class TradeApiImpl : public TradeApi::Server {
+   public:
+    ::kj::Promise<void> reqOrder(ReqOrderContext context) override {
+        auto orderId = context.getParams().getOrderId();
+        auto callback = context.getParams().getCb();
+
+        std::cout << "orderId=" << orderId << '\n';
+        for (size_t i = 0; i < 3; ++i) {
+            auto resp = callback.onOrderRequest();
+            auto s = std::format("idx={}, oid={}", i, orderId);
+            auto value = capnp::Text::Reader(s);
+            resp.setInfo(value);
+            resp.sendForPipeline();
+        }
+        return kj::READY_NOW;
+    }
+
+    ::kj::Promise<void> reqCancel(ReqCancelContext context) override {
+        auto orderId = context.getParams().getOrderId();
+        auto callback = context.getParams().getCb();
+
+        std::cout << "cancel orderId=" << orderId << '\n';
+        auto resp = callback.onCancelRequest();
+        auto value = capnp::Text::Reader(std::format("cid={}", orderId));
+        resp.setInfo(value);
+        return resp.send().ignoreResult();
+    }
+};
+
+int main(int argc, char const* argv[]) {
+    capnp::EzRpcServer server{kj::heap<TradeApiImpl>(), "localhost:8888"};
+    kj::NEVER_DONE.wait(server.getWaitScope());
+}
 ```
