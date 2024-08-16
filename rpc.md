@@ -6,6 +6,7 @@
     - [callback invoke](#callback-invoke)
     - [sync and async order system](#sync-and-async-order-system)
   - [RPC by capnp in C++](#rpc-by-capnp-in-c)
+    - [pingpong benchmark](#pingpong-benchmark)
 
 
 ## RPC by pycapnp
@@ -239,7 +240,7 @@ if __name__ == "__main__":
 ## RPC by capnp in C++
 
 - `vcpkg install capnproto`
-- download [capnp tools](https://capnproto.org/capnp-tool.html), `capnp compile -oc++ .\trade.capnp`
+- download [capnp tools](https://capnproto.org/capnp-tool.html), `capnp compile -oc++ trade.capnp`
 
 ```bash
 .
@@ -374,5 +375,103 @@ class TradeApiImpl : public TradeApi::Server {
 int main(int argc, char const* argv[]) {
     capnp::EzRpcServer server{kj::heap<TradeApiImpl>(), "localhost:8888"};
     kj::NEVER_DONE.wait(server.getWaitScope());
+}
+```
+
+### pingpong benchmark
+
+```capnp
+# pingpong.capnp
+@0x98b1e5d1836a2beb;
+
+interface PingPong {
+  ping @0 (content :Int64) -> (reply :Int64);
+}
+```
+
+> `capnp compile -oc++ pingpong.capnp`
+
+```cmake
+cmake_minimum_required(VERSION 3.12.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(server server.cpp pingpong.capnp.c++)
+add_executable(client client.cpp pingpong.capnp.c++)
+
+# this is heuristically generated, and may not be correct
+find_package(CapnProto CONFIG REQUIRED)
+# note: 6 additional targets are not displayed.
+target_link_libraries(server PRIVATE CapnProto::kj CapnProto::capnp CapnProto::capnp-rpc)
+target_link_libraries(client PRIVATE CapnProto::kj CapnProto::capnp CapnProto::capnp-rpc)
+```
+
+```cpp
+// server.cpp
+#include <capnp/ez-rpc.h>
+#include <cstdio>
+#include "pingpong.capnp.h"
+
+class PingPongImpl final : public PingPong::Server {
+   public:
+    kj::Promise<void> ping(PingContext context) override {
+        auto content = context.getParams().getContent();
+        context.getResults().setReply(content);
+        return kj::READY_NOW;
+    }
+};
+
+int main(int argc, const char* argv[]) {
+    if (argc != 2) {
+        printf("usage: %s ADDRESS[:PORT]\n", argv[0]);
+        printf("Runs the server bound to the given address/port.\n");
+        printf("ADDRESS may be '*' to bind to all local addresses.\n");
+        printf(":PORT may be omitted to choose a port automatically.\n");
+        printf("ADDRESS may be UNIX domain socket unix:/tmp/xxx or unix-abstract:xxx\n");
+        return 1;
+    }
+    capnp::EzRpcServer server(kj::heap<PingPongImpl>(), argv[1]);
+    auto& waitScope = server.getWaitScope();
+    auto port = server.getPort().wait(waitScope);
+    if (port == 0) {
+        printf("Listening on Unix domain socket...\n");
+    } else {
+        printf("Listening on port %d...\n", port);
+    }
+    kj::NEVER_DONE.wait(waitScope);
+}
+```
+
+```cpp
+// client.cpp
+#include <capnp/ez-rpc.h>
+#include <chrono>
+#include <cstdio>
+#include <string>
+#include "pingpong.capnp.h"
+
+int main(int argc, const char* argv[]) {
+    if (argc != 3) {
+        printf("usage: %s HOST:PORT ROUNDS\n", argv[0]);
+        return 1;
+    }
+
+    capnp::EzRpcClient client(argv[1]);
+    auto pingPong = client.getMain<PingPong>();
+    auto& waitScope = client.getWaitScope();
+
+    auto N = std::stol(argv[2]);
+    size_t total = 0;
+    for (size_t i = 0; i < N; ++i) {
+        auto startTime = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        auto request = pingPong.pingRequest();
+        request.setContent(startTime);
+        auto response = request.send().wait(waitScope);
+        auto endTime = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        auto nanoseconds = endTime - response.getReply();
+        total += nanoseconds;
+    }
+
+    printf("round: %lu, costs %f ns\n", N, total * 1.0 / N);
 }
 ```
