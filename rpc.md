@@ -7,6 +7,8 @@
     - [sync and async order system](#sync-and-async-order-system)
   - [RPC by capnp in C++](#rpc-by-capnp-in-c)
     - [pingpong benchmark](#pingpong-benchmark)
+  - [yaLanTingLibs rpc](#yalantinglibs-rpc)
+    - [yaLanTingLibs pingpong rpc](#yalantinglibs-pingpong-rpc)
 
 
 ## RPC by pycapnp
@@ -473,5 +475,102 @@ int main(int argc, const char* argv[]) {
     }
 
     printf("round: %lu, costs %f ns\n", N, total * 1.0 / N);
+}
+```
+
+## yaLanTingLibs rpc
+
+### yaLanTingLibs pingpong rpc
+
+```bash
+.
+├── CMakeLists.txt
+├── rpc_service.hpp
+├── client.cpp
+└── server.cpp
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.24.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(server server.cpp)
+add_executable(client client.cpp)
+
+include(FetchContent)
+
+FetchContent_Declare(
+    yalantinglibs
+    GIT_REPOSITORY https://github.com/JYLeeLYJ/yalantinglibs.git
+    GIT_TAG feat/fetch # optional ( default master / main )
+    GIT_SHALLOW 1 # optional ( --depth=1 )
+)
+
+FetchContent_MakeAvailable(yalantinglibs)
+
+target_link_libraries(server yalantinglibs::yalantinglibs)
+target_link_libraries(client yalantinglibs::yalantinglibs)
+```
+
+```cpp
+// rpc_service.hpp
+#include <cstdint>
+
+inline int64_t bound(int64_t value) {
+    return value;
+}
+```
+
+```cpp
+// client.cpp
+#include <chrono>
+#include <ylt/coro_rpc/coro_rpc_client.hpp>
+#include "rpc_service.hpp"
+
+async_simple::coro::Lazy<void> test_client(const char* addr, size_t rounds) {
+    coro_rpc::coro_rpc_client client;
+    co_await client.connect(addr);
+    size_t total = 0;
+    for (size_t i = 0; i < rounds; ++i) {
+        auto startTime = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        auto r = co_await client.call<bound>(startTime);  // 传参数调用rpc函数
+        auto endTime = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        total += endTime - r.value();
+    }
+    printf("rounds=%lu, costs=%f ns\n", rounds, total * 1.0 / rounds);
+}
+
+int main(int argc, const char* argv[]) {
+    if (argc != 3) {
+        printf("usage: %s HOST:PORT ROUNDS\n", argv[0]);
+        return 1;
+    }
+    auto N = std::stol(argv[2]);
+    syncAwait(test_client(argv[1], N));
+}
+```
+
+```cpp
+// server.cpp
+#include <ylt/coro_rpc/coro_rpc_server.hpp>
+#include <ylt/easylog.hpp>
+
+#include "rpc_service.hpp"
+
+int main(int argc, const char* argv[]) {
+    if (argc != 2) {
+        printf("usage: %s PORT\n", argv[0]);
+        return 1;
+    }
+    uint16_t port = std::stoi(argv[1]);
+
+    easylog::set_console(false);  // turn off log
+    coro_rpc::coro_rpc_server server{/*thread_num =*/16, /*port =*/port};
+    server.register_handler<bound>();  // register RPC function
+
+    printf("listening on port %d...\n", server.port());
+    server.start();
 }
 ```
