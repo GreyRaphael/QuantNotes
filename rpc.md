@@ -382,6 +382,9 @@ int main(int argc, char const* argv[]) {
 
 ### pingpong benchmark
 
+> benchmark: round: 1000000, costs 52643.168400 ns
+
+
 ```capnp
 # pingpong.capnp
 @0x98b1e5d1836a2beb;
@@ -482,6 +485,14 @@ int main(int argc, const char* argv[]) {
 
 ### yaLanTingLibs pingpong rpc
 
+benchmark, better than capnproto
+> build with **Release**, then the log info disappeared
+- thread_nums= 1, rounds=1000000, costs=31345.727900 ns
+- thread_nums= 2, rounds=1000000, costs=29942.434900 ns 
+- thread_nums= 4, rounds=1000000, costs=30012.773400 ns
+- thread_nums= 8, rounds=1000000, costs=30086.524900 ns
+- thread_nums=16, rounds=1000000, costs=29847.370900 ns
+
 ```bash
 .
 ├── CMakeLists.txt
@@ -555,22 +566,19 @@ int main(int argc, const char* argv[]) {
 ```cpp
 // server.cpp
 #include <ylt/coro_rpc/coro_rpc_server.hpp>
-#include <ylt/easylog.hpp>
-
 #include "rpc_service.hpp"
 
 int main(int argc, const char* argv[]) {
-    if (argc != 2) {
-        printf("usage: %s PORT\n", argv[0]);
+    if (argc != 3) {
+        printf("usage: %s PORT THREAD_NUMS\n", argv[0]);
         return 1;
     }
-    uint16_t port = std::stoi(argv[1]);
+    unsigned short port = std::stoi(argv[1]);
+    unsigned thread_nums = std::stoi(argv[2]);
 
-    easylog::set_console(false);  // turn off log
-    coro_rpc::coro_rpc_server server{/*thread_num =*/16, /*port =*/port};
+    coro_rpc::coro_rpc_server server{thread_nums, port};
     server.register_handler<bound>();  // register RPC function
 
-    printf("listening on port %d...\n", server.port());
     server.start();
 }
 ```
