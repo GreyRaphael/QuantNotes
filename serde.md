@@ -12,6 +12,7 @@
     - [serde for cpp](#serde-for-cpp)
     - [serde for rust](#serde-for-rust)
     - [serde between cpp and python with nng](#serde-between-cpp-and-python-with-nng)
+  - [serde by yalantinglibs](#serde-by-yalantinglibs)
 
 
 ## parse bytes manually
@@ -548,4 +549,71 @@ if __name__ == "__main__":
         subscribe()
     except KeyboardInterrupt:
         pass
+```
+
+## serde by yalantinglibs
+
+```bash
+.
+├── CMakeLists.txt
+└── main.cpp
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.24.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(proj1 main.cpp)
+
+include(FetchContent)
+FetchContent_Declare(
+    yalantinglibs
+    GIT_REPOSITORY https://github.com/alibaba/yalantinglibs.git
+    GIT_TAG main
+    GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(yalantinglibs)
+
+target_link_libraries(proj1 yalantinglibs::yalantinglibs)
+```
+
+```cpp
+// main.cpp
+#include <array>
+#include <ylt/easylog.hpp>
+#include <ylt/reflection/member_names.hpp>
+#include <ylt/struct_pack.hpp>
+
+struct Stock {
+    std::array<char, 6> symbols;
+    int open;
+    std::array<int, 10> ask_prices;
+};
+
+int main(int, char **) {
+    {
+        // field names
+        auto names = ylt::reflection::member_names<Stock>;
+        for (int i = 0; auto &&name : names) {
+            ELOGFMT(INFO, "name={},idx={}", name, i);
+            ++i;
+        }
+    }
+    {
+        auto name_map = ylt::reflection::member_names_map<Stock>;
+        for (auto &&[name, idx] : name_map) {
+            std::string s{name.begin(), name.end()};
+            ELOGFMT(INFO, "name={}, idx={}", s, idx);
+        }
+    }
+    {
+        // serialize & deserialize
+        Stock tick{};
+        auto vec_chars = struct_pack::serialize(tick);
+        auto tick2 = struct_pack::deserialize<Stock>(vec_chars);
+        ELOGFMT(INFO, "TICK2 {}", tick2->open);
+    }
+}
 ```
