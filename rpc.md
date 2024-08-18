@@ -254,8 +254,6 @@ if __name__ == "__main__":
 └── trade.capnp.h # generated
 ```
 
-[]
-
 ```capnp
 # trade.capnp
 @0x85150b117366d14b;
@@ -382,7 +380,7 @@ int main(int argc, char const* argv[]) {
 
 ### pingpong benchmark
 
-> benchmark: round: 1000000, costs 52643.168400 ns
+> benchmark in Beelink: round: 1000000, costs 52643.168400 ns
 
 
 ```capnp
@@ -447,6 +445,11 @@ int main(int argc, const char* argv[]) {
 }
 ```
 
+benchmark in Aliyun, for `*:8888` and `unix:/tmp/xxx`
+- `*:8888`: round: 100000, costs 110561.675040 ns
+- unix domain socket `unix:/tmp/xxx`: round: 100000, costs 68295.661150 ns
+- abstract Unix domain socke `unix-abstract:yyy`: round: 100000, costs 68205.324150 ns
+
 ```cpp
 // client.cpp
 #include <capnp/ez-rpc.h>
@@ -485,7 +488,7 @@ int main(int argc, const char* argv[]) {
 
 ### yaLanTingLibs pingpong rpc
 
-benchmark, better than capnproto
+benchmark in Beelink, better than capnproto
 > build with **Release**, then the log info disappeared
 - thread_nums= 1, rounds=1000000, costs=31345.727900 ns
 - thread_nums= 2, rounds=1000000, costs=29942.434900 ns 
