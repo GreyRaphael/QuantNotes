@@ -487,6 +487,8 @@ int main(int argc, const char* argv[]) {
 
 ## RPC by capnp in Rust
 
+> about +30% latency than c++
+
 ```bash
 .
 ├── Cargo.toml
