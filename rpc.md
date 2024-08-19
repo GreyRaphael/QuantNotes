@@ -7,6 +7,7 @@
     - [sync and async order system](#sync-and-async-order-system)
   - [RPC by capnp in C++](#rpc-by-capnp-in-c)
     - [pingpong benchmark](#pingpong-benchmark)
+  - [RPC by capnp in Rust](#rpc-by-capnp-in-rust)
   - [yaLanTingLibs rpc](#yalantinglibs-rpc)
     - [yaLanTingLibs pingpong rpc](#yalantinglibs-pingpong-rpc)
 
@@ -481,6 +482,189 @@ int main(int argc, const char* argv[]) {
     }
 
     printf("round: %lu, costs %f ns\n", N, total * 1.0 / N);
+}
+```
+
+## RPC by capnp in Rust
+
+```bash
+.
+├── Cargo.toml
+└── src
+    ├── hello_world.capnp
+    ├── hello_world_capnp.rs # generated
+    ├── main.rs
+    ├── client.rs
+    └── server.rs
+```
+
+```toml
+[package]
+name = "proj_cap"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+capnp = "0.19"
+capnp-rpc = "0.19"
+futures = "0.3"
+tokio = {version="1.39", features=["net","rt","macros"]}
+tokio-util = {version="0.7",features=["compat"]}
+```
+
+> `capnp compile -orust hello_world.capnp`
+
+```capnp
+# hello_world.capnp
+@0x9663f4dd604afa35;
+
+interface HelloWorld {
+    sayHello @0 (request: Int64) -> (reply: Int64);
+}
+```
+
+```rs
+// main.rs
+pub mod hello_world_capnp;
+pub mod client;
+pub mod server;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = ::std::env::args().collect();
+    if args.len() >= 2 {
+        match &args[1][..] {
+            "client" => return client::main().await,
+            "server" => return server::main().await,
+            _ => (),
+        }
+    }
+
+    println!("usage: {} [client | server] ADDRESS", args[0]);
+    Ok(())
+}
+```
+
+```rs
+// client.rs
+use crate::hello_world_capnp::hello_world;
+use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
+use std::net::ToSocketAddrs;
+
+use futures::AsyncReadExt;
+
+pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = ::std::env::args().collect();
+    if args.len() != 4 {
+        println!("usage: {} client HOST:PORT ROUND", args[0]);
+        return Ok(());
+    }
+
+    let addr = args[2]
+        .to_socket_addrs()?
+        .next()
+        .expect("could not parse address");
+
+    let num = args[3].parse::<i64>()?;
+
+    tokio::task::LocalSet::new()
+        .run_until(async move {
+            let stream = tokio::net::TcpStream::connect(&addr).await?;
+            stream.set_nodelay(true)?;
+            let (reader, writer) =
+                tokio_util::compat::TokioAsyncReadCompatExt::compat(stream).split();
+            let rpc_network = Box::new(twoparty::VatNetwork::new(
+                futures::io::BufReader::new(reader),
+                futures::io::BufWriter::new(writer),
+                rpc_twoparty_capnp::Side::Client,
+                Default::default(),
+            ));
+            let mut rpc_system = RpcSystem::new(rpc_network, None);
+            let hello_world: hello_world::Client =
+                rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
+
+            tokio::task::spawn_local(rpc_system);
+
+            let mut total: u128 = 0;
+
+            for i in 0..num {
+                let start=std::time::Instant::now();
+
+                let mut request = hello_world.say_hello_request();
+                request.get().set_request(i);
+                let _reply = request.send().promise.await?;
+
+                total += start.elapsed().as_nanos();
+            }
+            println!("round={}, avg costs={}", num, (total as f64) / (num as f64));
+
+            Ok(())
+        })
+        .await
+}
+```
+
+```rs
+// server.rs
+use capnp::capability::Promise;
+use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
+
+use crate::hello_world_capnp::hello_world;
+
+use futures::AsyncReadExt;
+use std::net::ToSocketAddrs;
+
+struct HelloWorldImpl;
+
+impl hello_world::Server for HelloWorldImpl {
+    fn say_hello(
+        &mut self,
+        params: hello_world::SayHelloParams,
+        mut results: hello_world::SayHelloResults,
+    ) -> Promise<(), ::capnp::Error> {
+        let value = params.get().expect("not").get_request();
+        results.get().set_reply(value);
+
+        Promise::ok(())
+    }
+}
+
+pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = ::std::env::args().collect();
+    if args.len() != 3 {
+        println!("usage: {} server ADDRESS[:PORT]", args[0]);
+        return Ok(());
+    }
+
+    let addr = args[2]
+        .to_socket_addrs()?
+        .next()
+        .expect("could not parse address");
+
+    tokio::task::LocalSet::new()
+        .run_until(async move {
+            let listener = tokio::net::TcpListener::bind(&addr).await?;
+            let hello_world_client: hello_world::Client = capnp_rpc::new_client(HelloWorldImpl);
+
+            loop {
+                let (stream, _) = listener.accept().await?;
+                stream.set_nodelay(true)?;
+                let (reader, writer) =
+                    tokio_util::compat::TokioAsyncReadCompatExt::compat(stream).split();
+                let network = twoparty::VatNetwork::new(
+                    futures::io::BufReader::new(reader),
+                    futures::io::BufWriter::new(writer),
+                    rpc_twoparty_capnp::Side::Server,
+                    Default::default(),
+                );
+
+                let rpc_system =
+                    RpcSystem::new(Box::new(network), Some(hello_world_client.clone().client));
+
+                tokio::task::spawn_local(rpc_system);
+            }
+        })
+        .await
 }
 ```
 
