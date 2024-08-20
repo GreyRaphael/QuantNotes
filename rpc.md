@@ -487,7 +487,7 @@ int main(int argc, const char* argv[]) {
 
 ## RPC by capnp in Rust
 
-> about +30% latency than c++
+> benchmark: round=1000000, avg costs=95325.2556 ns
 
 ```bash
 .
