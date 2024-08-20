@@ -700,14 +700,12 @@ add_executable(server server.cpp)
 add_executable(client client.cpp)
 
 include(FetchContent)
-
 FetchContent_Declare(
     yalantinglibs
-    GIT_REPOSITORY https://github.com/JYLeeLYJ/yalantinglibs.git
-    GIT_TAG feat/fetch # optional ( default master / main )
-    GIT_SHALLOW 1 # optional ( --depth=1 )
+    GIT_REPOSITORY https://github.com/alibaba/yalantinglibs.git
+    GIT_TAG main
+    GIT_SHALLOW 1
 )
-
 FetchContent_MakeAvailable(yalantinglibs)
 
 target_link_libraries(server yalantinglibs::yalantinglibs)
