@@ -14,6 +14,7 @@
       - [pynng with `Surveyor0` and `Respondent0`](#pynng-with-surveyor0-and-respondent0)
       - [pynng with `Bus0`](#pynng-with-bus0)
     - [nng for cpp](#nng-for-cpp)
+    - [nng for rust](#nng-for-rust)
   - [`cpp-ipc` usage](#cpp-ipc-usage)
 
 ## nng or pynng
@@ -517,6 +518,65 @@ void subscribe_alloc(char const* url) {
 
 int main(int argc, char** argv) {
     subscribe_alloc("ipc:///tmp/pubsub.ipc");
+}
+```
+
+### nng for rust
+
+- `cargo new proj_nng`, then `cd proj_nng`
+- `cargo add nng`, then edit main.rs
+
+```rs
+use nng::{
+    options::{protocol::pubsub::Subscribe, Options},
+    Protocol, Socket,
+};
+use std::env;
+
+fn main() -> Result<(), nng::Error> {
+    let args: Vec<_> = env::args().take(2).collect();
+    subscriber(&args[1])
+}
+
+fn subscriber(url: &str) -> Result<(), nng::Error> {
+    let s = Socket::new(Protocol::Sub0)?;
+    s.dial(url)?;
+
+    println!("SUBSCRIBER: SUBSCRIBING TO ALL TOPICS");
+    let all_topics = vec![];
+    s.set_opt::<Subscribe>(all_topics)?;
+
+    loop {
+        let msg = s.recv()?;
+        let tick: &ATickL2 = unsafe { std::mem::transmute(msg.as_ptr()) };
+        println!("receive quote.volume={}", tick.volume);
+    }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+struct ATickL2 {
+    code: [i8; 16],
+    dt: i64,
+    preclose: u32,
+    open: u32,
+    last: u32,
+    iopv: u32,
+    high_limit: u32,
+    low_limit: u32,
+    num_trades: u32,
+    volume: u64,
+    tot_av: u64,
+    tot_bv: u64,
+    amount: u64,
+    avg_ap: u32,
+    avg_bp: u32,
+    aps: [u32; 10],
+    bps: [u32; 10],
+    avs: [u32; 10],
+    bvs: [u32; 10],
+    ans: [u32; 10],
+    bns: [u32; 10],
 }
 ```
 
