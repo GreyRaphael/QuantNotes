@@ -381,7 +381,10 @@ int main(int argc, char const* argv[]) {
 
 ### pingpong benchmark
 
-> benchmark in Beelink: round: 1000000, costs 52643.168400 ns
+benchmark in Beelink
+- round: 10000, costs 53489.530000 ns
+- round: 100000, costs 47885.851000 ns
+- round: 1000000, costs 47756.287300 ns
 
 
 ```capnp
@@ -487,7 +490,10 @@ int main(int argc, const char* argv[]) {
 
 ## RPC by capnp in Rust
 
-> benchmark: round=1000000, avg costs=95325.2556 ns
+benchmark in beelink:
+- round=10000, avg costs=54498.02 ns
+- round=100000, avg costs=47638.888 ns
+- round=1000000, avg costs=47308.8719 ns
 
 ```bash
 .
@@ -510,8 +516,8 @@ edition = "2021"
 capnp = "0.19"
 capnp-rpc = "0.19"
 futures = "0.3"
-tokio = {version="1.39", features=["net","rt","macros"]}
-tokio-util = {version="0.7",features=["compat"]}
+tokio = { version = "1", features = ["net", "rt", "macros", "rt-multi-thread"] }
+tokio-util = { version = "0.7", features = ["compat"] }
 ```
 
 > `capnp compile -orust hello_world.capnp`
@@ -531,7 +537,8 @@ pub mod hello_world_capnp;
 pub mod client;
 pub mod server;
 
-#[tokio::main(flavor = "current_thread")]
+// #[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = ::std::env::args().collect();
     if args.len() >= 2 {
