@@ -531,11 +531,9 @@ use nng::{
     options::{protocol::pubsub::Subscribe, Options},
     Protocol, Socket,
 };
-use std::env;
 
 fn main() -> Result<(), nng::Error> {
-    let args: Vec<_> = env::args().take(2).collect();
-    subscriber(&args[1])
+    subscriber("ipc:///tmp/pubsub.ipc")
 }
 
 fn subscriber(url: &str) -> Result<(), nng::Error> {
