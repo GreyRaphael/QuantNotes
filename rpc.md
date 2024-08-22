@@ -780,6 +780,14 @@ int main(int argc, const char* argv[]) {
 
 ### yaLanTingLibs pingpong websocket
 
+benchmark in Beelink, better than capnproto
+> build with **Release**, then the log info disappeared
+- server thread_nums= 1, round=1000000, costs=31539.561100 ns
+- server thread_nums= 2, round=1000000, costs=31522.231700 ns 
+- server thread_nums= 4, round=1000000, costs=30851.884200 ns
+- server thread_nums= 8, round=1000000, costs=30849.733100 ns
+- server thread_nums=16, round=1000000, costs=31272.926000 ns
+
 ```bash
 .
 ├── CMakeLists.txt
@@ -791,6 +799,7 @@ int main(int argc, const char* argv[]) {
 // server.cpp
 #include <format>
 #include <iostream>
+#include <string>
 #include <ylt/coro_http/coro_http_server.hpp>
 
 using namespace coro_http;
@@ -825,8 +834,13 @@ async_simple::coro::Lazy<void> handle_websocket(coro_http_request &req, coro_htt
     }
 }
 
-int main() {
-    coro_http_server server(/*thread_num*/ 8, /*address*/ "0.0.0.0:9001", /*cpu_affinity*/ true);
+int main(int argc, const char *argv[]) {
+    if (argc != 3) {
+        printf("usage: %s ADDRESS THREAD_NUMS\n", argv[0]);
+        return 1;
+    }
+    auto thread_num = std::stol(argv[2]);
+    coro_http_server server(/*thread_num*/ thread_num, /*address*/ argv[1], /*cpu_affinity*/ true);
     server.set_http_handler<GET>("/ws_echo", handle_websocket);
     auto r = server.sync_start();
     std::cout << std::format("start server error, msg={}\n", r.message());
