@@ -10,6 +10,7 @@
   - [RPC by capnp in Rust](#rpc-by-capnp-in-rust)
   - [yaLanTingLibs rpc](#yalantinglibs-rpc)
     - [yaLanTingLibs pingpong rpc](#yalantinglibs-pingpong-rpc)
+    - [yaLanTingLibs pingpong websocket](#yalantinglibs-pingpong-websocket)
 
 
 ## RPC by pycapnp
@@ -683,11 +684,11 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 benchmark in Beelink, better than capnproto
 > build with **Release**, then the log info disappeared
-- thread_nums= 1, rounds=1000000, costs=31345.727900 ns
-- thread_nums= 2, rounds=1000000, costs=29942.434900 ns 
-- thread_nums= 4, rounds=1000000, costs=30012.773400 ns
-- thread_nums= 8, rounds=1000000, costs=30086.524900 ns
-- thread_nums=16, rounds=1000000, costs=29847.370900 ns
+- server thread_nums= 1, rounds=1000000, costs=31345.727900 ns
+- server thread_nums= 2, rounds=1000000, costs=29942.434900 ns 
+- server thread_nums= 4, rounds=1000000, costs=30012.773400 ns
+- server thread_nums= 8, rounds=1000000, costs=30086.524900 ns
+- server thread_nums=16, rounds=1000000, costs=29847.370900 ns
 
 ```bash
 .
@@ -774,5 +775,101 @@ int main(int argc, const char* argv[]) {
     server.register_handler<bound>();  // register RPC function
 
     server.start();
+}
+```
+
+### yaLanTingLibs pingpong websocket
+
+```bash
+.
+├── CMakeLists.txt
+├── client.cpp
+└── server.cpp
+```
+
+```cpp
+// server.cpp
+#include <format>
+#include <iostream>
+#include <ylt/coro_http/coro_http_server.hpp>
+
+using namespace coro_http;
+
+async_simple::coro::Lazy<void> handle_websocket(coro_http_request &req, coro_http_response &resp) {
+    assert(req.get_content_type() == content_type::websocket);
+    websocket_result result{};
+
+    while (true) {
+        result = co_await req.get_conn()->read_websocket();
+        if (result.ec) {
+            break;
+        }
+
+        if (result.type == ws_frame_type::WS_CLOSE_FRAME) {
+            std::cout << "close frame\n";
+            break;
+        }
+
+        if (result.type == ws_frame_type::WS_TEXT_FRAME || result.type == ws_frame_type::WS_BINARY_FRAME) {
+            // std::cout << result.data << "\n";
+        } else if (result.type == ws_frame_type::WS_PING_FRAME || result.type == ws_frame_type::WS_PONG_FRAME) {
+            continue;
+        } else {
+            break;
+        }
+
+        auto ec = co_await req.get_conn()->write_websocket(result.data);
+        if (ec) {
+            break;
+        }
+    }
+}
+
+int main() {
+    coro_http_server server(/*thread_num*/ 8, /*address*/ "0.0.0.0:9001", /*cpu_affinity*/ true);
+    server.set_http_handler<GET>("/ws_echo", handle_websocket);
+    auto r = server.sync_start();
+    std::cout << std::format("start server error, msg={}\n", r.message());
+}
+```
+
+```cpp
+// client.cpp
+#include <format>
+#include <span>
+#include <ylt/coro_http/coro_http_client.hpp>
+#include <ylt/easylog.hpp>
+
+using namespace coro_http;
+
+async_simple::coro::Lazy<void> use_websocket(const char* address, size_t N) {
+    coro_http_client client{};
+    auto r = co_await client.connect(std::format("ws://{}/ws_echo", address));
+    if (r.net_err) {
+        ELOGFMT(ERROR, "net error {}", r.net_err.message());
+        co_return;
+    }
+
+    long total = 0;
+    for (size_t i = 0; i < N; ++i) {
+        auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        ELOGFMT(INFO, "sending--->{}", start);
+        auto view = std::span<char>(reinterpret_cast<char*>(&start), sizeof(long));
+        co_await client.write_websocket(view, opcode::binary);
+        auto resp = co_await client.read_websocket();
+        auto result = reinterpret_cast<long const*>(resp.resp_body.data());
+        total += std::chrono::high_resolution_clock::now().time_since_epoch().count() - *result;
+        ELOGFMT(INFO, "receive===>{}", *result);
+    }
+    printf("round=%lu, costs=%f\n", N, total * 1.0 / N);
+}
+
+int main(int argc, const char* argv[]) {
+    if (argc != 3) {
+        printf("usage: %s ADDRESS ROUNDS\n", argv[0]);
+        return 1;
+    }
+    auto rounds = std::stol(argv[2]);
+    async_simple::coro::syncAwait(use_websocket(argv[1], rounds));
 }
 ```
