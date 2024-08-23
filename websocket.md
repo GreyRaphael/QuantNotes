@@ -9,6 +9,8 @@
 
 > `pip install websockets`
 
+[websockets documentation](https://websockets.readthedocs.io/en/stable/index.html)
+
 ### py websocket server
 
 example server1
