@@ -32,6 +32,23 @@ async def my_coroutine():
     return "Task completed"
 
 async def main():
+    task = my_coroutine() # not go to background
+    # do something else ...
+    result = await task
+    print(result)
+
+asyncio.run(main())
+```
+
+```py
+import asyncio
+
+async def my_coroutine():
+    print("Task started")
+    await asyncio.sleep(1)
+    return "Task completed"
+
+async def main():
     task = asyncio.create_task(my_coroutine()) # go to background
     # do something else ...
     result = await task
@@ -231,4 +248,56 @@ async def hello_equivalent():
 if __name__ == "__main__":
     asyncio.run(hello())
     asyncio.run(hello_equivalent())  # will never be invoked, because `await while True`
+```
+
+optimize async client
+
+```py
+import asyncio
+from websockets.asyncio.client import connect
+
+async def send_message(websocket):
+    i = 0
+    while True:
+        await websocket.send(f"{i:02d}")
+        await asyncio.sleep(2)
+        i += 1
+
+async def receive_messages(websocket):
+    while True:
+        message = await asyncio.wait_for(websocket.recv(), timeout=10)
+        print(message)
+
+# not working, just blocking
+async def hello1():
+    async with connect("ws://localhost:8888/ws_echo") as websocket:
+        recv_coro = receive_messages(websocket)
+        send_coro = send_message(websocket)
+
+        # 以为while True await卡在了第一个recv_coro上
+        await recv_coro
+        await send_coro
+
+# working
+async def hello2():
+    async with connect("ws://localhost:8888/ws_echo") as websocket:
+        recv_task = asyncio.create_task(receive_messages(websocket))
+        send_task = asyncio.create_task(send_message(websocket))
+
+        # 并发执行
+        await recv_task
+        await send_task
+
+# working
+async def hello3():
+    async with connect("ws://localhost:8888/ws_echo") as websocket:
+        tasks = asyncio.gather(receive_messages(websocket), send_message(websocket))
+
+        # 并发执行
+        await tasks  # gather is good for results
+
+if __name__ == "__main__":
+    # asyncio.run(hello1()) # not working
+    asyncio.run(hello2()) # good
+    # asyncio.run(hello3()) # good
 ```
