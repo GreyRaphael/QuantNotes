@@ -2,6 +2,7 @@
 
 - [Websocket](#websocket)
   - [python websocket](#python-websocket)
+    - [python async basic](#python-async-basic)
     - [py websocket server](#py-websocket-server)
     - [py websocket client](#py-websocket-client)
 
@@ -10,6 +11,91 @@
 > `pip install websockets`
 
 [websockets documentation](https://websockets.readthedocs.io/en/stable/index.html)
+
+### python async basic
+
+- `await` must be in `async` function
+- `asyncio.run` is used to run the asyncio event loop
+- `await` will block the current coroutine until the task is completed, and then resume the coroutine
+- If many coroutines are running, the event loop will automatically switch between them.
+
+`asyncio.create_task` vs `asyncio.gather`
+- Use `asyncio.create_task` when you want to start **a single coroutine** as a task that can run *independently*. 
+- Use `asyncio.gather` when you need to handle **multiple coroutines concurrently** and **collect their results**.
+
+```py
+import asyncio
+
+async def my_coroutine():
+    print("Task started")
+    await asyncio.sleep(1)
+    return "Task completed"
+
+async def main():
+    task = asyncio.create_task(my_coroutine()) # go to background
+    # do something else ...
+    result = await task
+    print(result)
+
+asyncio.run(main())
+```
+
+```py
+import asyncio
+
+async def my_coroutine():
+    print("Task started")
+    await asyncio.sleep(1)
+    return "Task completed"
+
+async def main():
+    task = asyncio.gather(my_coroutine())  # go to background
+    # do something else ...
+    result = await task
+    print(result)
+
+asyncio.run(main())
+```
+
+```py
+import asyncio
+
+async def task1():
+    await asyncio.sleep(1)
+    return "Result of task 1"
+
+async def task2():
+    await asyncio.sleep(2)
+    return "Result of task 2"
+
+async def main():
+    results = await asyncio.gather(task1(), task2())
+    for result in results:
+        print(result)
+
+asyncio.run(main())
+```
+
+```py
+import asyncio
+
+async def task1():
+    await asyncio.sleep(1)
+    return "Result of task 1"
+
+async def task2():
+    await asyncio.sleep(2)
+    return "Result of task 2"
+
+async def main():
+    tasks = [asyncio.create_task(task1()), asyncio.create_task(task2())]
+    # do something else ...
+    results = await asyncio.gather(*tasks)
+    for result in results:
+        print(result)
+
+asyncio.run(main())
+```
 
 ### py websocket server
 
