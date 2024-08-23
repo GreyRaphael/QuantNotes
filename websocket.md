@@ -3,6 +3,7 @@
 - [Websocket](#websocket)
   - [python websocket](#python-websocket)
     - [py websocket server](#py-websocket-server)
+    - [py websocket client](#py-websocket-client)
 
 ## python websocket
 
@@ -78,4 +79,68 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+```
+
+### py websocket client
+
+sync client
+
+```py
+from websockets.sync.client import connect
+
+def hello():
+    with connect("ws://localhost:8888/ws_echo") as websocket:
+        for i in range(3):
+            websocket.send(f"record-{i}")
+
+        for i in range(3):
+            message = websocket.recv()
+            print(f"Received: {message}")
+
+
+if __name__ == "__main__":
+    hello()
+```
+
+async client
+
+```py
+import asyncio
+from websockets.asyncio.client import connect
+
+
+async def send_message(websocket, msg: str):
+    await websocket.send(msg)
+
+
+async def receive_messages(websocket):
+    while True:
+        message = await asyncio.wait_for(websocket.recv(), timeout=10)
+        # message = await websocket.recv()  # default timeout 20s
+        print(message)
+
+
+async def hello():
+    async with connect("ws://localhost:8888/ws_echo") as websocket:
+        # Create a task for receiving messages
+        receive_task = asyncio.create_task(receive_messages(websocket))
+
+        for i in range(3):
+            await send_message(websocket, f"input{i:02d}")
+        print("finish all sending")
+
+        # Wait for the receive task to complete
+        await receive_task
+
+
+async def hello_equivalent():
+    # same as hello()
+    websocket = await connect("ws://localhost:8888/ws_echo")
+    # ......
+    await websocket.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(hello())
+    asyncio.run(hello_equivalent())  # will never be invoked, because `await while True`
 ```
