@@ -11,6 +11,7 @@
   - [yaLanTingLibs rpc](#yalantinglibs-rpc)
     - [yaLanTingLibs pingpong rpc](#yalantinglibs-pingpong-rpc)
     - [yaLanTingLibs pingpong websocket](#yalantinglibs-pingpong-websocket)
+      - [websocket mock rpc](#websocket-mock-rpc)
 
 
 ## RPC by pycapnp
@@ -831,6 +832,11 @@ async_simple::coro::Lazy<void> handle_websocket(coro_http_request &req, coro_htt
         if (ec) {
             break;
         }
+        // // send twice
+        // ec = co_await req.get_conn()->write_websocket(result.data);
+        // if (ec) {
+        //     break;
+        // }
     }
 }
 
@@ -885,5 +891,89 @@ int main(int argc, const char* argv[]) {
     }
     auto rounds = std::stol(argv[2]);
     async_simple::coro::syncAwait(use_websocket(argv[1], rounds));
+}
+```
+
+#### websocket mock rpc
+
+```cpp
+// client.cpp
+#include <format>
+#include <future>
+#include <span>
+#include <ylt/coro_http/coro_http_client.hpp>
+#include <ylt/easylog.hpp>
+
+#include "async_simple/coro/SyncAwait.h"
+
+using namespace coro_http;
+
+class Client {
+   public:
+    Client(const char* address) : address_(address) {}
+
+    async_simple::coro::Lazy<void> connect() {
+        auto addr = std::format("ws://{}/ws_echo", address_);
+        auto r = co_await client_.connect(addr);
+        if (r.net_err) {
+            ELOGFMT(ERROR, "net error {}", r.net_err.message());
+            co_return;
+        }
+        ELOGFMT(INFO, "connected to {}", addr);
+    }
+
+    async_simple::coro::Lazy<bool> request(long value) {
+        auto view = std::span<char>(reinterpret_cast<char*>(&value), sizeof(long));
+        co_await client_.write_websocket(view, opcode::binary);
+        co_return true;
+    }
+
+    async_simple::coro::Lazy<void> listen() {
+        ELOGFMT(INFO, "listening");
+        while (true) {
+            auto resp = co_await client_.read_websocket();
+            if (resp.net_err) {
+                ELOGFMT(ERROR, "net error {}", resp.net_err.message());
+                break;
+            }
+            auto result = reinterpret_cast<long const*>(resp.resp_body.data());
+            onResponse(*result);
+        }
+    }
+
+    void onResponse(long value) {
+        ELOGFMT(INFO, "receive===>{}", value);
+    }
+
+   private:
+    coro_http_client client_;
+    const char* address_;
+};
+
+int main(int argc, const char* argv[]) {
+    if (argc != 3) {
+        printf("usage: %s ADDRESS ROUNDS\n", argv[0]);
+        return 1;
+    }
+    auto rounds = std::stol(argv[2]);
+    Client client(argv[1]);
+
+    async_simple::coro::syncAwait(client.connect());
+
+    // Run listen in a separate background task
+    auto listen_task = std::async(std::launch::async, [&client] {
+        async_simple::coro::syncAwait(client.listen());
+    });
+
+    for (size_t i = 0; i < rounds; ++i) {
+        auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        ELOGFMT(INFO, "sending--->{}", start);
+        async_simple::coro::syncAwait(client.request(start));
+    }
+
+    // Wait for the listen task to complete (if needed)
+    listen_task.wait();
+
+    return 0;
 }
 ```
