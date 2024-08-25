@@ -313,9 +313,6 @@ import (
 	"flag"
 	"log"
 	"net/url"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -323,11 +320,8 @@ import (
 
 func main() {
 	// Command-line arguments for iteration control
-	NUM := flag.Int("n", 100, "Number of messages to send")
+	NUM := flag.Int64("n", 100, "Number of messages to send")
 	flag.Parse()
-
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
 	u := url.URL{Scheme: "ws", Host: "localhost:8888", Path: "/ws_echo"}
 	log.Printf("connecting to %s", u.String())
@@ -340,31 +334,30 @@ func main() {
 
 	done := make(chan struct{})
 
-	// Reading Goroutine with controlled iterations
 	go func() {
 		defer close(done)
 		var total int64
-		for i := 0; i < *NUM; i++ {
+		for i := int64(0); i < *NUM; i++ {
 			_, message, err := c.ReadMessage()
 			if err != nil {
 				log.Println("read:", err)
 				return
 			}
 			end := time.Now().UnixNano()
-			num := int64(binary.LittleEndian.Uint64(message))
-			total += end - num
-			log.Printf("recv: %d at %d, diff=%d", num, time.Now().UnixNano(), end-num)
+			value := int64(binary.LittleEndian.Uint64(message))
+			total += end - value
+			log.Printf("recv: %d at %d, diff=%d", value, time.Now().UnixNano(), end-value)
 		}
-		log.Printf("round=%d, avg costs=%d\n", *NUM, total/(int64(*NUM)))
+		log.Printf("round=%d, avg costs=%d\n", *NUM, total/(*NUM))
 	}()
 
 	// Writing Goroutine with controlled iterations
 	go func() {
-		for i := 0; i < *NUM; i++ {
+		for i := int64(0); i < *NUM; i++ {
 			select {
 			case <-done:
 				return
-			default:
+			case <-time.After(time.Millisecond):
 				start := time.Now().UnixNano()
 				byteArray := make([]byte, 8)
 				binary.LittleEndian.PutUint64(byteArray, uint64(start))
@@ -374,21 +367,6 @@ func main() {
 					log.Println("write:", err)
 					return
 				}
-			case <-interrupt:
-				log.Println("interrupt")
-
-				// Cleanly close the connection by sending a close message and then
-				// waiting (with timeout) for the server to close the connection.
-				err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-				if err != nil {
-					log.Println("write close:", err)
-					return
-				}
-				select {
-				case <-done:
-				case <-time.After(time.Second):
-				}
-				return
 			}
 		}
 	}()
