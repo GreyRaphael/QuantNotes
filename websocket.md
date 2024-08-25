@@ -312,7 +312,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"log"
-	"net/url"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -320,22 +320,22 @@ import (
 
 func main() {
 	// Command-line arguments for iteration control
-	NUM := flag.Int64("n", 100, "Number of messages to send")
+	NUM := flag.Int64("n", 10, "Number of messages to send")
 	flag.Parse()
 
-	u := url.URL{Scheme: "ws", Host: "localhost:8888", Path: "/ws_echo"}
-	log.Printf("connecting to %s", u.String())
-
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	c, _, err := websocket.DefaultDialer.Dial("ws://localhost:8888/ws_echo", nil)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
 	defer c.Close()
 
-	done := make(chan struct{})
+	// WaitGroup to sync completion of goroutines
+	var wg sync.WaitGroup
+	wg.Add(2)
 
+	// Reading Goroutine
 	go func() {
-		defer close(done)
+		defer wg.Done()
 		var total int64
 		for i := int64(0); i < *NUM; i++ {
 			_, message, err := c.ReadMessage()
@@ -353,24 +353,21 @@ func main() {
 
 	// Writing Goroutine with controlled iterations
 	go func() {
+		defer wg.Done()
 		for i := int64(0); i < *NUM; i++ {
-			select {
-			case <-done:
+			start := time.Now().UnixNano()
+			byteArray := make([]byte, 8)
+			binary.LittleEndian.PutUint64(byteArray, uint64(start))
+			err := c.WriteMessage(websocket.BinaryMessage, byteArray)
+			log.Printf("send: %d", start)
+			if err != nil {
+				log.Println("write:", err)
 				return
-			case <-time.After(time.Millisecond):
-				start := time.Now().UnixNano()
-				byteArray := make([]byte, 8)
-				binary.LittleEndian.PutUint64(byteArray, uint64(start))
-				err := c.WriteMessage(websocket.TextMessage, byteArray)
-				log.Printf("send: %d", start)
-				if err != nil {
-					log.Println("write:", err)
-					return
-				}
 			}
+			time.Sleep(time.Millisecond) // simulate some delay
 		}
 	}()
 
-	<-done // Wait for read goroutine to exit.
+	wg.Wait() // Wait for all goroutines to complete
 }
 ```
