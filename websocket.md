@@ -8,6 +8,7 @@
   - [go websocket client](#go-websocket-client)
   - [cpp websocket](#cpp-websocket)
     - [beast websocket client](#beast-websocket-client)
+    - [async\_simple websocket client](#async_simple-websocket-client)
 
 ## python websocket
 
@@ -463,5 +464,87 @@ int main(int argc, char** argv) {
         return 1;
     }
     return 0;
+}
+```
+
+### async_simple websocket client
+
+```cpp
+#include <async_simple/executors/SimpleExecutor.h>
+
+#include <chrono>
+#include <cstdio>
+#include <format>
+#include <span>
+#include <ylt/coro_http/coro_http_client.hpp>
+#include <ylt/easylog.hpp>
+
+#include "async_simple/coro/Lazy.h"
+#include "async_simple/coro/Sleep.h"
+#include "cinatra/coro_http_client.hpp"
+
+using namespace coro_http;
+
+async_simple::coro::Lazy<void> send_loop(coro_http_client& client, long N) {
+    for (size_t i = 0; i < N; ++i) {
+        auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        ELOGFMT(WARN, "send {}", start);
+        auto view = std::span<char>(reinterpret_cast<char*>(&start), sizeof(long));
+        co_await client.write_websocket(view, opcode::binary);
+        co_await async_simple::coro::sleep(std::chrono::microseconds(100));
+    }
+}
+
+async_simple::coro::Lazy<void> recv_loop(coro_http_client& client, long N) {
+    long total = 0;
+    for (size_t i = 0; i < N; ++i) {
+        auto resp = co_await client.read_websocket();
+        auto result = reinterpret_cast<long const*>(resp.resp_body.data());
+        auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        ELOGFMT(WARN, "recv {} at {}, diff={}", *result, end, end - *result);
+        total += end - *result;
+    }
+    ELOGFMT(WARN, "round={}, costs={}", N, total / N);
+}
+
+async_simple::coro::Lazy<void> connect(coro_http_client& client, const char* address) {
+    auto r = co_await client.connect(std::format("ws://{}/ws_echo", address));
+    if (r.net_err) {
+        ELOGFMT(ERROR, "net error {}", r.net_err.message());
+        co_return;
+    }
+}
+
+async_simple::coro::Lazy<void> sendrecv(coro_http_client& client, long N) {
+    long total = 0;
+    for (size_t i = 0; i < N; ++i) {
+        auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        ELOGFMT(INFO, "sending--->{}", start);
+        auto view = std::span<char>(reinterpret_cast<char*>(&start), sizeof(long));
+        co_await client.write_websocket(view, opcode::binary);
+
+        auto resp = co_await client.read_websocket();
+        auto result = reinterpret_cast<long const*>(resp.resp_body.data());
+        total += std::chrono::high_resolution_clock::now().time_since_epoch().count() - *result;
+        ELOGFMT(INFO, "receive===>{}", *result);
+    }
+    ELOGFMT(WARN, "round={}, costs={}", N, total / N);
+}
+
+int main(int argc, const char* argv[]) {
+    if (argc != 3) {
+        printf("usage: %s ADDRESS ROUNDS\n", argv[0]);
+        return 1;
+    }
+    auto rounds = std::stol(argv[2]);
+
+    coro_http_client client;
+    async_simple::coro::syncAwait(connect(client, argv[1]));
+    // async_simple::coro::syncAwait(sendrecv(client, rounds));
+
+    async_simple::executors::SimpleExecutor exec{8};
+    send_loop(client, rounds).via(&exec).start([](auto&&) {});
+    recv_loop(client, rounds).via(&exec).start([](auto&&) {});
+    getchar();
 }
 ```
