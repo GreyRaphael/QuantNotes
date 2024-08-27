@@ -6,6 +6,8 @@
 
 ## FIX by cpp
 
+fix response benchmark is about 1ms, not low-latency
+
 `vcpkg install quickfix`
 
 ```bash
