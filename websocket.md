@@ -9,6 +9,7 @@
   - [cpp websocket](#cpp-websocket)
     - [beast websocket client](#beast-websocket-client)
     - [async\_simple websocket client](#async_simple-websocket-client)
+    - [websocket by nng](#websocket-by-nng)
 
 ## python websocket
 
@@ -552,5 +553,103 @@ int main(int argc, const char* argv[]) {
     send_loop(client, rounds).via(&exec).start([](auto&&) {});
     recv_loop(client, rounds).via(&exec).start([](auto&&) {});
     getchar();
+}
+```
+
+### websocket by nng
+
+> benchmark in beelink
+- server addr=ws://localhost:8888/ws_echo, round=1000000, costs=147968 ns
+- server addr=tcp://localhost:9999, round=1000000, costs=104453 ns 
+- server addr=ipc:///tmp/pingpong.ipc, round=1000000, costs=87915 ns
+
+```bash
+├── CMakeLists.txt
+├── client.cpp
+└── server.cpp
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(client client.cpp)
+add_executable(server server.cpp)
+
+# this is heuristically generated, and may not be correct
+find_package(nng CONFIG REQUIRED)
+target_link_libraries(client PRIVATE nng::nng)
+target_link_libraries(server PRIVATE nng::nng)
+```
+
+```cpp
+// client.cpp
+#include <nng/nng.h>
+#include <nng/protocol/reqrep0/req.h>
+
+#include <chrono>
+#include <cstdio>
+
+int main(int argc, const char* argv[]) {
+    if (argc < 3) {
+        printf("usage: %s url rounds\n", argv[0]);
+        return 1;
+    }
+    auto url = argv[1];
+    auto N = std::stol(argv[2]);
+
+    nng_socket sock{};
+
+    nng_req0_open(&sock);
+    nng_dial(sock, url, NULL, 0);
+
+    long total = 0;
+    for (size_t i = 0; i < N; ++i) {
+        long* buf = nullptr;
+        size_t sz;
+
+        auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        nng_send(sock, &start, 8, 0);
+        nng_recv(sock, &buf, &sz, NNG_FLAG_ALLOC);
+        auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        total += end - *buf;
+        nng_free(buf, sz);
+    }
+
+    printf("round=%lu, costs=%lu ns\n", N, total / N);
+
+    nng_close(sock);
+}
+```
+
+```cpp
+// server.cpp
+#include <nng/nng.h>
+#include <nng/protocol/reqrep0/rep.h>
+
+#include <cstdio>
+
+int main(int argc, const char *argv[]) {
+    if (argc < 2) {
+        printf("usage: %s url", argv[0]);
+        return 1;
+    }
+    auto url = argv[1];
+    nng_socket sock{};
+
+    nng_rep0_open(&sock);
+    nng_listen(sock, url, NULL, 0);
+
+    void *buf;
+    size_t sz;
+    while (true) {
+        nng_recv(sock, &buf, &sz, NNG_FLAG_ALLOC);
+        nng_send(sock, buf, sz, 0);
+    }
+    nng_free(buf, sz);
+
+    nng_close(sock);
 }
 ```
