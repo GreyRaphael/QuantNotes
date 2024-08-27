@@ -308,6 +308,8 @@ if __name__ == "__main__":
 
 ## go websocket client
 
+> benchmark in beelink: round=1000000, avg costs=92856
+
 ```go
 package main
 
