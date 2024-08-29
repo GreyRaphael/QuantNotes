@@ -472,6 +472,154 @@ int main(int argc, char** argv) {
 }
 ```
 
+beast websocket client with class
+
+```cpp
+#include <boost/asio.hpp>
+#include <boost/beast.hpp>
+#include <boost/beast/websocket.hpp>
+#include <chrono>
+#include <iostream>
+#include <thread>
+
+namespace asio = boost::asio;
+namespace beast = boost::beast;
+namespace websocket = beast::websocket;
+
+class WebsocketClient {
+   public:
+    WebsocketClient(asio::io_context& ioc, const std::string& host, const std::string& port)
+        : resolver_(ioc),
+          ws_(ioc),
+          host_(host) {
+        ws_.binary(true);
+        resolver_.async_resolve(host, port,
+                                beast::bind_front_handler(&WebsocketClient::onResolve, this));
+    }
+
+    void sendMessage(const std::string& msg) {
+        asio::post(ws_.get_executor(), beast::bind_front_handler(&WebsocketClient::doSend, this, msg));
+    }
+
+    void onMessage(const std::string& msg) {
+        // Handle the received message (this will be invoked asynchronously)
+        std::cout << "Received message: " << msg << std::endl;
+    }
+
+    void close() {
+        ws_.async_close(websocket::close_code::normal,
+                        beast::bind_front_handler(&WebsocketClient::onClose, this));
+    }
+
+   private:
+    void onResolve(beast::error_code ec, asio::ip::tcp::resolver::results_type results) {
+        if (ec) {
+            std::cerr << "Resolve error: " << ec.message() << std::endl;
+            return;
+        }
+
+        beast::get_lowest_layer(ws_).async_connect(results,
+                                                   beast::bind_front_handler(&WebsocketClient::onConnect, this));
+    }
+
+    void onConnect(beast::error_code ec, asio::ip::tcp::resolver::results_type::endpoint_type) {
+        if (ec) {
+            std::cerr << "Connect error: " << ec.message() << std::endl;
+            return;
+        }
+
+        ws_.async_handshake(host_, "/ws_echo",
+                            beast::bind_front_handler(&WebsocketClient::onHandshake, this));
+    }
+
+    void onHandshake(beast::error_code ec) {
+        if (ec) {
+            std::cerr << "Handshake error: " << ec.message() << std::endl;
+            return;
+        }
+
+        // Start reading messages asynchronously
+        doRead();
+    }
+
+    void doSend(const std::string& msg) {
+        if (ws_.is_open()) {
+            ws_.async_write(asio::buffer(msg),
+                            beast::bind_front_handler(&WebsocketClient::onWrite, this));
+        } else {
+            std::cerr << "WebSocket is closed, cannot send message." << std::endl;
+        }
+    }
+
+    void onWrite(beast::error_code ec, std::size_t bytes_transferred) {
+        if (ec) {
+            std::cerr << "Write error: " << ec.message() << std::endl;
+            return;
+        }
+
+        // Message successfully sent
+        std::cout << "send: " << bytes_transferred << " bytes\n";
+    }
+
+    void doRead() {
+        ws_.async_read(buffer_,
+                       beast::bind_front_handler(&WebsocketClient::onRead, this));
+    }
+
+    void onRead(beast::error_code ec, std::size_t bytes_transferred) {
+        if (ec) {
+            if (ec == websocket::error::closed) {
+                std::cerr << "WebSocket connection closed by the server." << std::endl;
+            } else {
+                std::cerr << "Read error: " << ec.message() << std::endl;
+            }
+            return;
+        }
+
+        // Process the received message
+        std::string message = beast::buffers_to_string(buffer_.data());
+        buffer_.consume(buffer_.size());  // Clear buffer
+        onMessage(message);
+
+        // Continue reading messages
+        doRead();
+    }
+
+    void onClose(beast::error_code ec) {
+        if (ec) {
+            std::cerr << "Close error: " << ec.message() << std::endl;
+        } else {
+            std::cout << "WebSocket closed successfully." << std::endl;
+        }
+    }
+
+   private:
+    asio::ip::tcp::resolver resolver_;
+    websocket::stream<beast::tcp_stream> ws_;
+    beast::flat_buffer buffer_;
+    std::string host_;
+
+    std::condition_variable cv_;
+    std::mutex mutex_;
+    bool handshake_done_;
+};
+
+int main() {
+    asio::io_context ioc;
+    WebsocketClient client(ioc, "localhost", "8888");
+
+    std::thread t([&ioc]() { ioc.run(); });
+
+    for (size_t i = 0; i < 10; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        client.sendMessage("hello");
+    }
+    client.close();
+
+    t.join();
+}
+```
+
 ### async_simple websocket client
 
 > benchmark: round=1000000, costs=106204 ns
