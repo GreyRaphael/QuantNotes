@@ -10,6 +10,7 @@
     - [beast websocket client](#beast-websocket-client)
     - [async\_simple websocket client](#async_simple-websocket-client)
     - [websocket by nng](#websocket-by-nng)
+    - [libhv websocket client](#libhv-websocket-client)
 
 ## python websocket
 
@@ -799,5 +800,81 @@ int main(int argc, const char *argv[]) {
     nng_free(buf, sz);
 
     nng_close(sock);
+}
+```
+
+### libhv websocket client
+
+recommend to use libhv websocket client: `vcpkg install libhv`
+
+```bash
+.
+├── CMakeLists.txt
+└── client.cpp
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(proj1 client.cpp)
+
+# this is heuristically generated, and may not be correct
+find_package(libhv CONFIG REQUIRED)
+target_link_libraries(proj1 PRIVATE hv_static)
+# # enable unix domain socket
+# target_compile_definitions(proj1 PRIVATE ENABLE_UDS)
+```
+
+```cpp
+// client.cpp
+#include <hv/WebSocketClient.h>
+
+#include <chrono>
+#include <thread>
+
+class MyClient : public hv::WebSocketClient {
+   public:
+    long total = 0;
+    int iterations = 0;
+    MyClient() {
+        setPingInterval(0);  // turn off ping
+        onopen = [] { std::cout << "on open" << '\n'; };
+        onclose = [] { std::cout << "on close" << '\n'; };
+        onmessage = [this](const std::string& msg) {
+            auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            auto ptr = reinterpret_cast<long const*>(msg.data());
+            this->total += end - *ptr;
+            ++iterations;
+        };
+    }
+
+    void sendMessages(int rounds) {
+        for (size_t i = 0; i < rounds; ++i) {
+            auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            auto ptr = reinterpret_cast<char*>(&start);
+            this->send(ptr, 8);
+            // printf("send: %lu\n", start);
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
+        }
+        printf("rounds=%d, costs=%lu\n", this->iterations, this->total / this->iterations);
+    }
+};
+
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        printf("usage: %s rounds\n", argv[0]);
+        return 1;
+    }
+    auto rounds = atoi(argv[1]);
+
+    MyClient ws;
+    ws.open("ws://127.0.0.1:8888/ws_echo");
+    ws.sendMessages(rounds);
+
+    getchar();
+    ws.close();
 }
 ```
