@@ -805,7 +805,9 @@ int main(int argc, const char *argv[]) {
 
 ### libhv websocket client
 
-recommend to use libhv websocket client: `vcpkg install libhv`
+recommend to use libhv websocket client: `vcpkg install libhv`, libhv support many protocols and utils.
+
+benchmark in beelink: rounds=1000000, costs=66515 ns
 
 ```bash
 .
