@@ -383,18 +383,35 @@ func main() {
 
 ### beast websocket client
 
-> benchmark in beelink: round=1000000, costs=66881
+```json
+// vcpkg.json
+{
+    "dependencies": [
+        "boost-beast"
+    ]
+}
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(client client.cpp)
+
+find_package(boost_beast CONFIG REQUIRED)
+target_link_libraries(client PRIVATE Boost::beast)
+```
 
 ```cpp
+// client.cpp
 #include <boost/asio.hpp>
-#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/beast.hpp>
-#include <boost/beast/websocket/stream.hpp>
 #include <chrono>
 #include <cstdio>
-#include <span>
 
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
@@ -407,12 +424,12 @@ net::awaitable<void> read_websocket(websocket::stream<beast::tcp_stream>& ws, in
     for (int i = 0; i < count; ++i) {
         beast::flat_buffer buffer;
         co_await ws.async_read(buffer, net::use_awaitable);
-        auto result = reinterpret_cast<long const*>(buffer.data().data());
         auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        auto result = reinterpret_cast<long const*>(buffer.data().data());
         // printf("receive %lu at %lu, diff=%lu\n", *result, end, end - *result);
         total += end - *result;
     }
-    printf("round=%d, costs=%lu\n", count, total / count);
+    printf("round=%d, costs=%lu ns\n", count, total / count);
 }
 
 // Coroutine for writing messages to the WebSocket
@@ -421,55 +438,63 @@ net::awaitable<void> write_websocket(websocket::stream<beast::tcp_stream>& ws, i
     net::steady_timer timer{exec};
     for (int i = 0; i < count; ++i) {
         auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-        auto view = std::span<unsigned char>(reinterpret_cast<unsigned char*>(&start), sizeof(long));
         // printf("send %lu\n", start);
-        co_await ws.async_write(net::buffer(view.data(), view.size()), net::use_awaitable);
-        timer.expires_after(std::chrono::microseconds(100));
+        auto ptr = reinterpret_cast<char*>(&start);
+        co_await ws.async_write(net::buffer(ptr, sizeof(long)), net::use_awaitable);
+        timer.expires_after(std::chrono::microseconds(10));
         co_await timer.async_wait(net::use_awaitable);
     }
 }
+
 
 net::awaitable<void> rw_websocket(websocket::stream<beast::tcp_stream>& ws, int count) {
     long total = 0;
     for (int i = 0; i < count; ++i) {
         beast::flat_buffer buffer;
         auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-        auto view = std::span<unsigned char>(reinterpret_cast<unsigned char*>(&start), sizeof(long));
         // printf("send %lu\n", start);
-        co_await ws.async_write(net::buffer(view.data(), view.size()), net::use_awaitable);
+        auto ptr = reinterpret_cast<char*>(&start);
+        co_await ws.async_write(net::buffer(ptr, sizeof(long)), net::use_awaitable);
         co_await ws.async_read(buffer, net::use_awaitable);
-        auto result = reinterpret_cast<long const*>(buffer.data().data());
         auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        auto result = reinterpret_cast<long const*>(buffer.data().data());
         // printf("receive %lu at %lu, diff=%lu\n", *result, end, end - *result);
         total += end - *result;
     }
-    printf("round=%d, costs=%lu\n", count, total / count);
+    printf("round=%d, costs=%lu ns\n", count, total / count);
 }
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        printf("usage: %s rounds", argv[0]);
+        printf("usage: %s rounds\n", argv[0]);
         return 1;
     }
-    int rounds = std::stoi(argv[1]);
+    auto rounds = atoi(argv[1]);
 
     net::io_context ioc;
     tcp::resolver resolver(ioc);
     auto endpoints = resolver.resolve("localhost", "8888");
+
     websocket::stream<beast::tcp_stream> ws(ioc);
     ws.binary(true);
-
-    auto const& endpoint = *endpoints.begin();
-    ws.next_layer().connect(endpoint);  // Synchronous connect, suitable for simplicity
-
+    ws.next_layer().connect(endpoints->endpoint());  // Synchronous connect, suitable for simplicity
     ws.handshake("localhost:8888", "/ws_echo");
 
-    // Launch coroutines
-    // net::co_spawn(ioc, read_websocket(ws, rounds), net::detached);
-    // net::co_spawn(ioc, write_websocket(ws, rounds), net::detached);
-    net::co_spawn(ioc, rw_websocket(ws, rounds), net::detached);
+    {
+        // send receive in the different functions
+        // benchmark in beelink: round=1000000, costs=67749 ns
+        net::co_spawn(ioc, read_websocket(ws, rounds), net::detached);
+        net::co_spawn(ioc, write_websocket(ws, rounds), net::detached);
+    }
+
+    {
+        // send receive in the same function
+        // benchmark in beelink: round=1000000, costs=28978 ns
+        net::co_spawn(ioc, rw_websocket(ws, rounds), net::detached);
+    }
 
     ioc.run();
+    getchar();
 }
 ```
 
