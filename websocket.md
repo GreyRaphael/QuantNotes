@@ -648,11 +648,36 @@ int main() {
 
 ### async_simple websocket client
 
-> benchmark: round=1000000, costs=106204 ns
+performance is same as boost.beast, but easy to use
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.24.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+# set(YLT_ENABLE_PMR ON)
+# set(YLT_ENABLE_IO_URING ON)
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fno-tree-slp-vectorize")
+
+add_executable(client client.cpp)
+
+include(FetchContent)
+FetchContent_Declare(
+    yalantinglibs
+    GIT_REPOSITORY https://github.com/alibaba/yalantinglibs.git
+    GIT_TAG main
+    GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(yalantinglibs)
+
+target_include_directories(client PRIVATE ${yalantinglibs_SOURCE_DIR}/include/ylt/thirdparty)
+target_include_directories(client PRIVATE ${yalantinglibs_SOURCE_DIR}/include/ylt/standalone)
+target_link_libraries(client PRIVATE yalantinglibs)
+```
 
 ```cpp
-#include <async_simple/executors/SimpleExecutor.h>
-
+// client.cpp
 #include <chrono>
 #include <cstdio>
 #include <format>
@@ -660,29 +685,25 @@ int main() {
 #include <ylt/coro_http/coro_http_client.hpp>
 #include <ylt/easylog.hpp>
 
-#include "async_simple/coro/Lazy.h"
-#include "async_simple/coro/Sleep.h"
-#include "cinatra/coro_http_client.hpp"
-
 using namespace coro_http;
 
-async_simple::coro::Lazy<void> send_loop(coro_http_client& client, long N) {
-    for (size_t i = 0; i < N; ++i) {
+async_simple::coro::Lazy<void> send_loop(coro_http_client& client, int N) {
+    for (auto i = 0; i < N; ++i) {
         auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-        ELOGFMT(WARN, "send {}", start);
+        // ELOGFMT(WARN, "send {}", start);
         auto view = std::span<char>(reinterpret_cast<char*>(&start), sizeof(long));
         co_await client.write_websocket(view, opcode::binary);
-        co_await async_simple::coro::sleep(std::chrono::microseconds(100));
+        co_await async_simple::coro::sleep(std::chrono::microseconds(10));
     }
 }
 
-async_simple::coro::Lazy<void> recv_loop(coro_http_client& client, long N) {
+async_simple::coro::Lazy<void> recv_loop(coro_http_client& client, int N) {
     long total = 0;
-    for (size_t i = 0; i < N; ++i) {
+    for (auto i = 0; i < N; ++i) {
         auto resp = co_await client.read_websocket();
         auto result = reinterpret_cast<long const*>(resp.resp_body.data());
         auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-        ELOGFMT(WARN, "recv {} at {}, diff={}", *result, end, end - *result);
+        // ELOGFMT(WARN, "recv {} at {}, diff={}", *result, end, end - *result);
         total += end - *result;
     }
     ELOGFMT(WARN, "round={}, costs={}", N, total / N);
@@ -696,17 +717,18 @@ async_simple::coro::Lazy<void> connect(coro_http_client& client, const char* add
     }
 }
 
-async_simple::coro::Lazy<void> sendrecv(coro_http_client& client, long N) {
+async_simple::coro::Lazy<void> rw_websocket(coro_http_client& client, int N) {
     long total = 0;
-    for (size_t i = 0; i < N; ++i) {
+    for (auto i = 0; i < N; ++i) {
         auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
         ELOGFMT(INFO, "sending--->{}", start);
         auto view = std::span<char>(reinterpret_cast<char*>(&start), sizeof(long));
         co_await client.write_websocket(view, opcode::binary);
 
         auto resp = co_await client.read_websocket();
+        auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
         auto result = reinterpret_cast<long const*>(resp.resp_body.data());
-        total += std::chrono::high_resolution_clock::now().time_since_epoch().count() - *result;
+        total += end - *result;
         ELOGFMT(INFO, "receive===>{}", *result);
     }
     ELOGFMT(WARN, "round={}, costs={}", N, total / N);
@@ -717,15 +739,25 @@ int main(int argc, const char* argv[]) {
         printf("usage: %s ADDRESS ROUNDS\n", argv[0]);
         return 1;
     }
-    auto rounds = std::stol(argv[2]);
+    auto rounds = atoi(argv[2]);
 
     coro_http_client client;
     async_simple::coro::syncAwait(connect(client, argv[1]));
-    // async_simple::coro::syncAwait(sendrecv(client, rounds));
 
-    async_simple::executors::SimpleExecutor exec{8};
-    send_loop(client, rounds).via(&exec).start([](auto&&) {});
-    recv_loop(client, rounds).via(&exec).start([](auto&&) {});
+    {
+        // send receive in the same function
+        // benchmark in beelink: round=1000000, costs=30991 ns
+        async_simple::coro::syncAwait(rw_websocket(client, rounds));
+    }
+
+    {
+        // send receive in the different functions
+        // benchmark in beelink: round=1000000, costs=66632 ns
+        auto exec = coro_io::get_global_executor();
+        send_loop(client, rounds).via(exec).start([](auto&&) {});
+        recv_loop(client, rounds).via(exec).start([](auto&&) {});
+    }
+
     getchar();
 }
 ```
