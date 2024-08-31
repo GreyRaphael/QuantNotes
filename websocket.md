@@ -8,8 +8,8 @@
   - [go websocket client](#go-websocket-client)
   - [cpp websocket](#cpp-websocket)
     - [beast websocket client](#beast-websocket-client)
-    - [async\_simple websocket client](#async_simple-websocket-client)
-    - [websocket by nng](#websocket-by-nng)
+    - [cinatra websocket client](#cinatra-websocket-client)
+    - [nng websocket client](#nng-websocket-client)
     - [libhv websocket client](#libhv-websocket-client)
 
 ## python websocket
@@ -441,6 +441,8 @@ net::awaitable<void> write_websocket(websocket::stream<beast::tcp_stream>& ws, i
         // printf("send %lu\n", start);
         auto ptr = reinterpret_cast<char*>(&start);
         co_await ws.async_write(net::buffer(ptr, sizeof(long)), net::use_awaitable);
+
+        // sleep enough time to yield to other coroutines
         timer.expires_after(std::chrono::microseconds(10));
         co_await timer.async_wait(net::use_awaitable);
     }
@@ -478,6 +480,7 @@ int main(int argc, char** argv) {
     websocket::stream<beast::tcp_stream> ws(ioc);
     ws.binary(true);
     ws.next_layer().connect(endpoints->endpoint());  // Synchronous connect, suitable for simplicity
+    ws.next_layer().socket().set_option(tcp::no_delay(true)); // optional, may decrease latency
     ws.handshake("localhost:8888", "/ws_echo");
 
     {
@@ -497,6 +500,21 @@ int main(int argc, char** argv) {
     getchar();
 }
 ```
+
+Event Loop and Coroutine Scheduling:
+- When you set the timer to a very short duration (< 10 microseconds), the `write_websocket` coroutine is likely being rescheduled almost immediately. This can cause it to dominate the event loop, delaying the execution of the `read_websocket` coroutine.
+- When the timer duration is longer (>10 microseconds), it allows the event loop to process other pending tasks, including the `read_websocket` coroutine, more frequently.
+
+Timer Granularity and System Scheduling:
+- The granularity of the system timer and the precision of the sleep duration can affect how the coroutines are scheduled. Very short sleep durations might not be accurately handled by the system, leading to less predictable scheduling behavior.
+- The operating system’s scheduler also plays a role. If the sleep duration is too short, the OS might not yield control to other tasks as effectively, causing the `write_websocket` coroutine to run more frequently.
+
+Boost.Asio’s Execution Model:
+- Boost.Asio uses a cooperative multitasking model where coroutines yield control back to the event loop. If a coroutine doesn’t yield often enough (due to very short sleep durations), it can starve other coroutines of execution time.
+
+To mitigate this issue, you can try a few approaches:
+- Increase the Timer Duration: As you’ve observed, increasing the timer duration allows for better interleaving of the `read_websocket` and `write_websocket` coroutines.
+- Adjust the Executor: Consider using a different executor or adjusting the thread pool size to better balance the workload.
 
 beast websocket client with class
 
@@ -646,9 +664,10 @@ int main() {
 }
 ```
 
-### async_simple websocket client
+### cinatra websocket client
 
-performance is same as boost.beast, but easy to use
+performance is same as boost.beast because they all use `asio` library
+> cinatra websocket client is easier to use than boost.beast
 
 ```cmake
 # CMakeLists.txt
@@ -693,6 +712,7 @@ async_simple::coro::Lazy<void> send_loop(coro_http_client& client, int N) {
         // ELOGFMT(WARN, "send {}", start);
         auto view = std::span<char>(reinterpret_cast<char*>(&start), sizeof(long));
         co_await client.write_websocket(view, opcode::binary);
+        // sleep enough time to yield to other coroutines
         co_await async_simple::coro::sleep(std::chrono::microseconds(10));
     }
 }
@@ -762,7 +782,7 @@ int main(int argc, const char* argv[]) {
 }
 ```
 
-### websocket by nng
+### nng websocket client
 
 > benchmark in beelink
 - server addr=ws://localhost:8888/ws_echo, round=1000000, avg latency=147968 ns
