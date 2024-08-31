@@ -310,7 +310,7 @@ if __name__ == "__main__":
 
 ## go websocket client
 
-> benchmark in beelink: round=1000000, avg costs=92856
+> benchmark in beelink: round=1000000, avg avg latency=92856
 
 ```go
 package main
@@ -355,7 +355,7 @@ func main() {
 			total += end - value
 			log.Printf("recv: %d at %d, diff=%d", value, time.Now().UnixNano(), end-value)
 		}
-		log.Printf("round=%d, avg costs=%d\n", *NUM, total/(*NUM))
+		log.Printf("round=%d, avg avg latency=%d\n", *NUM, total/(*NUM))
 	}()
 
 	// Writing Goroutine with controlled iterations
@@ -429,7 +429,7 @@ net::awaitable<void> read_websocket(websocket::stream<beast::tcp_stream>& ws, in
         // printf("receive %lu at %lu, diff=%lu\n", *result, end, end - *result);
         total += end - *result;
     }
-    printf("round=%d, costs=%lu ns\n", count, total / count);
+    printf("round=%d, avg latency=%lu ns\n", count, total / count);
 }
 
 // Coroutine for writing messages to the WebSocket
@@ -461,7 +461,7 @@ net::awaitable<void> rw_websocket(websocket::stream<beast::tcp_stream>& ws, int 
         // printf("receive %lu at %lu, diff=%lu\n", *result, end, end - *result);
         total += end - *result;
     }
-    printf("round=%d, costs=%lu ns\n", count, total / count);
+    printf("round=%d, avg latency=%lu ns\n", count, total / count);
 }
 
 int main(int argc, char** argv) {
@@ -482,14 +482,14 @@ int main(int argc, char** argv) {
 
     {
         // send receive in the different functions
-        // benchmark in beelink: round=1000000, costs=67749 ns
+        // benchmark in beelink: round=1000000, avg latency=67749 ns
         net::co_spawn(ioc, read_websocket(ws, rounds), net::detached);
         net::co_spawn(ioc, write_websocket(ws, rounds), net::detached);
     }
 
     {
         // send receive in the same function
-        // benchmark in beelink: round=1000000, costs=28978 ns
+        // benchmark in beelink: round=1000000, avg latency=28978 ns
         net::co_spawn(ioc, rw_websocket(ws, rounds), net::detached);
     }
 
@@ -706,7 +706,7 @@ async_simple::coro::Lazy<void> recv_loop(coro_http_client& client, int N) {
         // ELOGFMT(WARN, "recv {} at {}, diff={}", *result, end, end - *result);
         total += end - *result;
     }
-    ELOGFMT(WARN, "round={}, costs={}", N, total / N);
+    ELOGFMT(WARN, "round={}, avg latency={}", N, total / N);
 }
 
 async_simple::coro::Lazy<void> connect(coro_http_client& client, const char* address) {
@@ -731,7 +731,7 @@ async_simple::coro::Lazy<void> rw_websocket(coro_http_client& client, int N) {
         total += end - *result;
         ELOGFMT(INFO, "receive===>{}", *result);
     }
-    ELOGFMT(WARN, "round={}, costs={}", N, total / N);
+    ELOGFMT(WARN, "round={}, avg latency={}", N, total / N);
 }
 
 int main(int argc, const char* argv[]) {
@@ -746,13 +746,13 @@ int main(int argc, const char* argv[]) {
 
     {
         // send receive in the same function
-        // benchmark in beelink: round=1000000, costs=30991 ns
+        // benchmark in beelink: round=1000000, avg latency=30991 ns
         async_simple::coro::syncAwait(rw_websocket(client, rounds));
     }
 
     {
         // send receive in the different functions
-        // benchmark in beelink: round=1000000, costs=66632 ns
+        // benchmark in beelink: round=1000000, avg latency=66632 ns
         auto exec = coro_io::get_global_executor();
         send_loop(client, rounds).via(exec).start([](auto&&) {});
         recv_loop(client, rounds).via(exec).start([](auto&&) {});
@@ -765,9 +765,9 @@ int main(int argc, const char* argv[]) {
 ### websocket by nng
 
 > benchmark in beelink
-- server addr=ws://localhost:8888/ws_echo, round=1000000, costs=147968 ns
-- server addr=tcp://localhost:9999, round=1000000, costs=104453 ns 
-- server addr=ipc:///tmp/pingpong.ipc, round=1000000, costs=87915 ns
+- server addr=ws://localhost:8888/ws_echo, round=1000000, avg latency=147968 ns
+- server addr=tcp://localhost:9999, round=1000000, avg latency=104453 ns 
+- server addr=ipc:///tmp/pingpong.ipc, round=1000000, avg latency=87915 ns
 
 ```bash
 ├── CMakeLists.txt
@@ -824,7 +824,7 @@ int main(int argc, const char* argv[]) {
         nng_free(buf, sz);
     }
 
-    printf("round=%lu, costs=%lu ns\n", N, total / N);
+    printf("round=%lu, avg latency=%lu ns\n", N, total / N);
 
     nng_close(sock);
 }
@@ -864,7 +864,7 @@ int main(int argc, const char *argv[]) {
 
 recommend to use libhv websocket client: `vcpkg install libhv`, libhv support many protocols and utils.
 
-benchmark in beelink: rounds=1000000, costs=66515 ns
+benchmark in beelink: rounds=1000000, avg latency=66515 ns
 
 ```bash
 .
@@ -918,7 +918,7 @@ class MyClient : public hv::WebSocketClient {
             // printf("send: %lu\n", start);
             std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
-        printf("rounds=%d, costs=%lu\n", this->iterations, this->total / this->iterations);
+        printf("rounds=%d, avg latency=%lu\n", this->iterations, this->total / this->iterations);
     }
 };
 
