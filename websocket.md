@@ -10,7 +10,7 @@
     - [beast websocket client](#beast-websocket-client)
     - [cinatra websocket client](#cinatra-websocket-client)
     - [nng websocket client](#nng-websocket-client)
-    - [libhv websocket client](#libhv-websocket-client)
+    - [libhv websocket client and server](#libhv-websocket-client-and-server)
 
 ## python websocket
 
@@ -880,7 +880,7 @@ int main(int argc, const char *argv[]) {
 }
 ```
 
-### libhv websocket client
+### libhv websocket client and server
 
 recommend to use libhv websocket client: `vcpkg install libhv`, libhv support many protocols and utils.
 
@@ -889,7 +889,8 @@ benchmark in beelink: rounds=1000000, avg latency=66515 ns
 ```bash
 .
 ├── CMakeLists.txt
-└── client.cpp
+├── client.cpp
+└── server.cpp
 ```
 
 ```cmake
@@ -898,11 +899,13 @@ cmake_minimum_required(VERSION 3.20.0)
 project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
-add_executable(proj1 client.cpp)
+add_executable(client client.cpp)
+add_executable(server server.cpp)
 
 # this is heuristically generated, and may not be correct
 find_package(libhv CONFIG REQUIRED)
-target_link_libraries(proj1 PRIVATE hv_static)
+target_link_libraries(client PRIVATE hv_static)
+target_link_libraries(server PRIVATE hv_static)
 # # enable unix domain socket
 # target_compile_definitions(proj1 PRIVATE ENABLE_UDS)
 ```
@@ -931,29 +934,67 @@ class MyClient : public hv::WebSocketClient {
     }
 
     void sendMessages(int rounds) {
-        for (size_t i = 0; i < rounds; ++i) {
+        for (auto i = 0; i < rounds; ++i) {
             auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
             auto ptr = reinterpret_cast<char*>(&start);
-            this->send(ptr, 8);
+            this->send(ptr, sizeof(start));
             // printf("send: %lu\n", start);
             std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
-        printf("rounds=%d, avg latency=%lu\n", this->iterations, this->total / this->iterations);
+        printf("rounds=%d, costs=%lu\n", this->iterations, this->total / this->iterations);
     }
 };
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        printf("usage: %s rounds\n", argv[0]);
+    if (argc < 3) {
+        printf("usage: %s ADDRESS ROUNDS\n", argv[0]);
         return 1;
     }
-    auto rounds = atoi(argv[1]);
+    auto addr = argv[1];
+    auto rounds = atoi(argv[2]);
 
     MyClient ws;
-    ws.open("ws://127.0.0.1:8888/ws_echo");
+    // e.g. ws://localhost:8888/ws_echo
+    ws.open(addr);
     ws.sendMessages(rounds);
 
     getchar();
     ws.close();
+}
+```
+
+```cpp
+// server.cpp
+#include <hv/WebSocketServer.h>
+
+#include <cstdio>
+
+int main(int argc, char** argv) {
+    if (argc < 3) {
+        printf("usage: %s HOST PORT\n", argv[0]);
+        return 1;
+    }
+    auto host = argv[1];
+    auto port = atoi(argv[2]);
+
+    WebSocketService ws;  // default ping interval is disabled
+    ws.onopen = [](const WebSocketChannelPtr& channel, const HttpRequestPtr& req) {
+        printf("onopen: GET %s\n", req->Path().c_str());
+    };
+    ws.onmessage = [](const WebSocketChannelPtr& channel, const std::string& msg) {
+        // printf("onmessage: %.*s\n", (int)msg.size(), msg.data());
+        channel->send(msg.data(), msg.size());
+    };
+    ws.onclose = [](const WebSocketChannelPtr& channel) {
+        printf("onclose\n");
+    };
+
+    hv::WebSocketServer server{&ws};
+    server.setHost(host);
+    server.setPort(port);
+    server.setProcessNum(1);  // optional, like nginx
+    server.setThreadNum(4);
+    printf("listening to %s:%d...\n", server.host, server.port);
+    server.run();
 }
 ```
