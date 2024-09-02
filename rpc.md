@@ -7,6 +7,7 @@
     - [sync and async order system](#sync-and-async-order-system)
   - [RPC by capnp in C++](#rpc-by-capnp-in-c)
     - [pingpong benchmark](#pingpong-benchmark)
+    - [get data from spi](#get-data-from-spi)
   - [RPC by capnp in Rust](#rpc-by-capnp-in-rust)
   - [yaLanTingLibs rpc](#yalantinglibs-rpc)
     - [yaLanTingLibs pingpong rpc](#yalantinglibs-pingpong-rpc)
@@ -487,6 +488,138 @@ int main(int argc, const char* argv[]) {
     }
 
     printf("round: %lu, costs %f ns\n", N, total * 1.0 / N);
+}
+```
+
+### get data from spi
+
+```bash
+.
+├── CMakeLists.txt
+├── client.cpp
+├── server.cpp
+└── trade.capnp
+```
+
+`capnp compile -oc++ trade.capnp`
+
+```bash
+# trade.capnp
+@0x85150b117366d14b;
+
+interface Spi{
+  onRspOrderInsert @0(rsp :Int64) ->();
+  onRspOrderAction @1(rsp :Int64) ->();
+}
+
+interface Api{
+  orderInsert @0(req :Int64, callback :Spi)->(flag :Bool);
+  orderAction @1(req :Int64, callback :Spi)->(flag :Bool);
+}
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(client client.cpp trade.capnp.c++)
+add_executable(server server.cpp trade.capnp.c++)
+
+find_package(CapnProto CONFIG REQUIRED)
+target_link_libraries(server PRIVATE CapnProto::kj CapnProto::capnp CapnProto::capnp-rpc)
+target_link_libraries(client PRIVATE CapnProto::kj CapnProto::capnp CapnProto::capnp-rpc)
+```
+
+```cpp
+// client.cpp
+#include <capnp/ez-rpc.h>
+#include <kj/memory.h>
+#include <kj/refcount.h>
+
+#include <chrono>
+#include <cstdio>
+
+#include "trade.capnp.h"
+
+class SpiImpl final : public Spi::Server, public kj::Refcounted {
+   public:
+    long orderLatency{};
+    long cancelLatency{};
+    ::kj::Promise<void> onRspOrderInsert(OnRspOrderInsertContext context) override {
+        auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        auto rsp = context.getParams().getRsp();
+        orderLatency = end - rsp;
+        printf("receive order: %lu, diff=%lu\n", rsp, orderLatency);
+        return kj::READY_NOW;
+    }
+
+    ::kj::Promise<void> onRspOrderAction(OnRspOrderActionContext context) override {
+        auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        auto rsp = context.getParams().getRsp();
+        cancelLatency = end - rsp;
+        printf("receive cancel: %lu, diff=%lu\n", rsp, cancelLatency);
+        return kj::READY_NOW;
+    }
+};
+
+int main() {
+    capnp::EzRpcClient client("localhost:8888");
+    auto api = client.getMain<Api>();
+    auto& waitScope = client.getWaitScope();
+
+    auto spi = kj::refcounted<SpiImpl>();
+    auto spiBak = kj::addRef(*spi.get());
+    ::Spi::Client spiClient{kj::mv(spi)};
+
+    auto reqInsert = api.orderInsertRequest();
+    auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    reqInsert.setReq(start);
+    reqInsert.setCallback(spiClient);
+    reqInsert.send().wait(waitScope);
+    printf("order latency=%lu ns\n", spiBak->orderLatency);
+
+    auto reqCancel = api.orderActionRequest();
+    reqCancel.setReq(start);
+    reqCancel.setCallback(spiClient);
+    reqCancel.send().wait(waitScope);
+    printf("cancel latency=%lu ns\n", spiBak->cancelLatency);
+}
+```
+
+```cpp
+// serer.cpp
+#include <capnp/ez-rpc.h>
+#include "trade.capnp.h"
+
+class ApiImpl final : public Api::Server {
+    ::kj::Promise<void> orderInsert(OrderInsertContext context) override {
+        auto req = context.getParams().getReq();
+        context.getResults().setFlag(true);
+
+        // callback
+        auto spiCient = context.getParams().getCallback();
+        auto rsp = spiCient.onRspOrderInsertRequest();
+        rsp.setRsp(req + 100);
+        return rsp.send().ignoreResult();
+    }
+
+    ::kj::Promise<void> orderAction(OrderActionContext context) override {
+        auto req = context.getParams().getReq();
+        context.getResults().setFlag(true);
+
+        // callback
+        auto spiCient = context.getParams().getCallback();
+        auto rsp = spiCient.onRspOrderActionRequest();
+        rsp.setRsp(req - 100);
+        return rsp.send().ignoreResult();
+    }
+};
+
+int main() {
+    capnp::EzRpcServer server(kj::heap<ApiImpl>(), "localhost:8888");
+    kj::NEVER_DONE.wait(server.getWaitScope());  // Run forever
 }
 ```
 
