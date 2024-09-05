@@ -14,6 +14,7 @@
       - [pynng with `Surveyor0` and `Respondent0`](#pynng-with-surveyor0-and-respondent0)
       - [pynng with `Bus0`](#pynng-with-bus0)
     - [nng for cpp](#nng-for-cpp)
+      - [nng for pub0 and sub0](#nng-for-pub0-and-sub0)
       - [cpp nng for Req0 and Rep0](#cpp-nng-for-req0-and-rep0)
     - [nng for rust](#nng-for-rust)
   - [`cpp-ipc` usage](#cpp-ipc-usage)
@@ -372,11 +373,13 @@ This pattern is useful for scenarios where multiple nodes need to communicate wi
 
 `vcpkg install ngg`
 
+#### nng for pub0 and sub0
+
 ```bash
 ├── CMakeLists.txt
+├── datatypes.h
 ├── publisher.cpp
-├── subscriber1.cpp
-└── subscriber2.cpp
+└── subscriber.cpp
 ```
 
 ```cmake
@@ -386,13 +389,42 @@ project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 add_executable(pub publisher.cpp)
-add_executable(sub1 subscriber1.cpp)
-add_executable(sub2 subscriber2.cpp)
+add_executable(sub subscriber.cpp)
 
 find_package(nng CONFIG REQUIRED)
 target_link_libraries(pub PRIVATE nng::nng)
-target_link_libraries(sub1 PRIVATE nng::nng)
-target_link_libraries(sub2 PRIVATE nng::nng)
+target_link_libraries(sub PRIVATE nng::nng)
+```
+
+```cpp
+// datatypes.h
+#pragma once
+#include <array>
+#include <cstdint>
+
+struct ATickL2 {
+    std::array<char, 16> code;
+    int64_t dt;
+    uint32_t preclose;
+    uint32_t open;
+    uint32_t last;
+    uint32_t iopv;
+    uint32_t high_limit;
+    uint32_t low_limit;
+    uint32_t num_trades;
+    uint64_t volume;
+    uint64_t tot_av;
+    uint64_t tot_bv;
+    uint64_t amount;
+    uint32_t avg_ap;
+    uint32_t avg_bp;
+    std::array<uint32_t, 10> aps;
+    std::array<uint32_t, 10> bps;
+    std::array<uint32_t, 10> avs;
+    std::array<uint32_t, 10> bvs;
+    std::array<uint32_t, 10> ans;
+    std::array<uint32_t, 10> bns;
+};
 ```
 
 ```cpp
@@ -400,38 +432,26 @@ target_link_libraries(sub2 PRIVATE nng::nng)
 #include <nng/nng.h>
 #include <nng/protocol/pubsub0/pub.h>
 #include <nng/supplemental/util/platform.h>  // for sleep
-
 #include <cstdio>
-
-struct Data {
-    int id;
-    int64_t volume;
-    double amount;
-    int prices[20];
-};
+#include "datatypes.h"
 
 void publish(char const* url) {
     nng_socket pub_sock{};
     nng_pub0_open(&pub_sock);
     nng_listen(pub_sock, url, NULL, 0);  // listener=NULL; flags=0 ignored
 
-    Data quote{};
+    ATickL2 quote{};
 
     size_t i = 0;
     while (true) {
         // mock quote
-        quote.id = i;
-        quote.volume = i * 100;
-        quote.amount = i * 111.1;
-        for (size_t j = 0; j < 10; ++j) {
-            quote.prices[j] = i * 100.2 + j;
-        }
+        quote.volume = i;
 
         // send quote on stack
-        nng_send(pub_sock, &quote, sizeof(Data), 0);  // flags=0, default for pub mode
+        nng_send(pub_sock, &quote, sizeof(ATickL2), 0);  // flags=0, default for pub mode
 
-        printf("send quote.id=%d\n", quote.id);
-        nng_msleep(500);  // sleep 500 ms
+        printf("send quote.id=%lu\n", quote.volume);
+        nng_msleep(100);  // sleep 100 ms
         ++i;
     }
 }
@@ -441,22 +461,14 @@ int main() {
 }
 ```
 
-without `NNG_FLAG_ALLOC`
-
 ```cpp
-// subscriber1.cpp
+// subscriber.cpp
 #include <nng/nng.h>
 #include <nng/protocol/pubsub0/sub.h>
+#include <memory>
+#include "datatypes.h"
 
-#include <cstdio>
-
-struct Data {
-    int id;
-    int64_t volume;
-    double amount;
-    int prices[20];
-};
-
+// without NNG_FLAG_ALLOC
 void subscribe_not_alloc(char const* url) {
     nng_socket sub_sock;
     nng_sub0_open(&sub_sock);
@@ -465,37 +477,17 @@ void subscribe_not_alloc(char const* url) {
     // nng_dialer=NULL, flags=0 ignored
     nng_dial(sub_sock, url, NULL, 0);
 
-    Data quote{};
-    size_t sz = sizeof(Data);  // preknow size
+    ATickL2 quote{};
+    size_t sz = sizeof(ATickL2);  // preknow size
     for (size_t i = 0; i < 10; ++i) {
         // 0, copy receive data(on heap) to quote on stack
         nng_recv(sub_sock, &quote, &sz, 0);
-        printf("receive quote.id=%d\n", quote.id);
+        printf("receive quote.volume=%lu\n", quote.volume);
     }
     nng_close(sub_sock);
 }
 
-int main(int argc, char** argv) {
-    subscribe_not_alloc("ipc:///tmp/pubsub.ipc");
-}
-```
-
-with `NNG_FLAG_ALLOC`, higher performance
-
-```cpp
-// subscriber2.cpp
-#include <nng/nng.h>
-#include <nng/protocol/pubsub0/sub.h>
-
-#include <cstdio>
-
-struct Data {
-    int id;
-    int64_t volume;
-    double amount;
-    int prices[20];
-};
-
+// with NNG_FLAG_ALLOC, of higher performance
 void subscribe_alloc(char const* url) {
     nng_socket sub_sock;
     nng_sub0_open(&sub_sock);
@@ -504,20 +496,19 @@ void subscribe_alloc(char const* url) {
     // nng_dialer=NULL, flags=0 ignored
     nng_dial(sub_sock, url, NULL, 0);
 
-    Data* quote_ptr = nullptr;
-    size_t sz;  // size get by nng_recv
     for (size_t i = 0; i < 10; ++i) {
+        auto quote_ptr = std::make_unique<ATickL2>();
+        size_t sz;  // size get by nng_recv
         // NNG_FLAG_ALLOC, move receive data(on heap) ownership to quote_ptr
         nng_recv(sub_sock, &quote_ptr, &sz, NNG_FLAG_ALLOC);
-        printf("receive quote.id=%d\n", quote_ptr->id);
-
-        // must release heap data, otherwise memory leak
-        nng_free(quote_ptr, sz);
-    }
+        printf("receive quote.volume=%lu\n", quote_ptr->volume);
+    }  // auto free quote_ptr by smart pointer
     nng_close(sub_sock);
 }
 
 int main(int argc, char** argv) {
+    subscribe_not_alloc("ipc:///tmp/pubsub.ipc");
+    printf("begin alloc case\n");
     subscribe_alloc("ipc:///tmp/pubsub.ipc");
 }
 ```
