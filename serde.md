@@ -617,3 +617,176 @@ int main(int, char **) {
     }
 }
 ```
+
+`struct_pack` vs `nlohmann` benchmark:
+- struct_pack iterations=1000000, avg serialization time: 40 ns, avg deserialization time: 43 ns
+- nlohmann iterations=1000000, avg serialization time: 5506 ns, avg deserialization time: 1447 ns
+
+```cmake
+cmake_minimum_required(VERSION 3.20.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(proj1 main.cpp)
+
+include(FetchContent)
+FetchContent_Declare(
+    yalantinglibs
+    GIT_REPOSITORY https://github.com/alibaba/yalantinglibs.git
+    GIT_TAG main 
+    GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(yalantinglibs)
+target_link_libraries(proj1 PRIVATE yalantinglibs)
+
+find_package(fmt CONFIG REQUIRED)
+target_link_libraries(proj1 PRIVATE fmt::fmt)
+
+find_package(nlohmann_json CONFIG REQUIRED)
+target_link_libraries(proj1 PRIVATE nlohmann_json::nlohmann_json)
+```
+
+```cpp
+// main.cpp
+#include <fmt/core.h>
+
+#include <chrono>
+#include <nlohmann/json.hpp>
+#include <ylt/struct_pack.hpp>
+
+struct ATickL2 {
+    std::array<char, 16> code;
+    int64_t dt;
+    uint32_t preclose;
+    uint32_t open;
+    uint32_t last;
+    uint32_t iopv;
+    uint32_t high_limit;
+    uint32_t low_limit;
+    uint32_t num_trades;
+    uint64_t volume;
+    uint64_t tot_av;
+    uint64_t tot_bv;
+    uint64_t amount;
+    uint32_t avg_ap;
+    uint32_t avg_bp;
+    std::array<uint32_t, 10> aps;
+    std::array<uint32_t, 10> bps;
+    std::array<uint32_t, 10> avs;
+    std::array<uint32_t, 10> bvs;
+    std::array<uint32_t, 10> ans;
+    std::array<uint32_t, 10> bns;
+};
+
+// Serialization: Convert ATickL2 to json
+void to_json(nlohmann::json& j, const ATickL2& tick) {
+    j = nlohmann::json{
+        {"code", std::string(tick.code.data(), tick.code.size())},
+        {"dt", tick.dt},
+        {"preclose", tick.preclose},
+        {"open", tick.open},
+        {"last", tick.last},
+        {"iopv", tick.iopv},
+        {"high_limit", tick.high_limit},
+        {"low_limit", tick.low_limit},
+        {"num_trades", tick.num_trades},
+        {"volume", tick.volume},
+        {"tot_av", tick.tot_av},
+        {"tot_bv", tick.tot_bv},
+        {"amount", tick.amount},
+        {"avg_ap", tick.avg_ap},
+        {"avg_bp", tick.avg_bp},
+        {"aps", tick.aps},
+        {"bps", tick.bps},
+        {"avs", tick.avs},
+        {"bvs", tick.bvs},
+        {"ans", tick.ans},
+        {"bns", tick.bns}};
+}
+
+// Deserialization: Convert json to ATickL2
+void from_json(const nlohmann::json& j, ATickL2& tick) {
+    std::string code_str = j.at("code").get<std::string>();
+    std::copy_n(code_str.begin(), std::min(code_str.size(), tick.code.size()), tick.code.begin());
+
+    j.at("dt").get_to(tick.dt);
+    j.at("preclose").get_to(tick.preclose);
+    j.at("open").get_to(tick.open);
+    j.at("last").get_to(tick.last);
+    j.at("iopv").get_to(tick.iopv);
+    j.at("high_limit").get_to(tick.high_limit);
+    j.at("low_limit").get_to(tick.low_limit);
+    j.at("num_trades").get_to(tick.num_trades);
+    j.at("volume").get_to(tick.volume);
+    j.at("tot_av").get_to(tick.tot_av);
+    j.at("tot_bv").get_to(tick.tot_bv);
+    j.at("amount").get_to(tick.amount);
+    j.at("avg_ap").get_to(tick.avg_ap);
+    j.at("avg_bp").get_to(tick.avg_bp);
+    j.at("aps").get_to(tick.aps);
+    j.at("bps").get_to(tick.bps);
+    j.at("avs").get_to(tick.avs);
+    j.at("bvs").get_to(tick.bvs);
+    j.at("ans").get_to(tick.ans);
+    j.at("bns").get_to(tick.bns);
+}
+
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        fmt::println("usage: {} iterations", argv[0]);
+        return 1;
+    }
+    ATickL2 tick = {
+        .code = {'A', 'B', 'C', '\0'},
+        .dt = 1234567890,
+        .preclose = 100,
+        .open = 101,
+        .last = 102,
+        .iopv = 103,
+        .high_limit = 104,
+        .low_limit = 99,
+        .num_trades = 10,
+        .volume = 1000,
+        .tot_av = 10000,
+        .tot_bv = 11000,
+        .amount = 123456,
+        .avg_ap = 105,
+        .avg_bp = 106,
+        .aps = {101, 102, 103, 104, 105, 106, 107, 108, 109, 110},
+        .bps = {201, 202, 203, 204, 205, 206, 207, 208, 209, 210},
+        .avs = {1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900},
+        .bvs = {2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900},
+        .ans = {300, 310, 320, 330, 340, 350, 360, 370, 380, 390},
+        .bns = {400, 410, 420, 430, 440, 450, 460, 470, 480, 490}};
+    auto iterations = atoi(argv[1]);
+    {
+        long serialize_time = 0;
+        long deserialize_time = 0;
+        for (size_t i = 0; i < iterations; ++i) {
+            auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            auto buf = struct_pack::serialize(tick);
+            auto mid = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            auto tick2 = struct_pack::deserialize<ATickL2>(buf);
+            auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            serialize_time += mid - start;
+            deserialize_time += end - mid;
+        }
+        fmt::println("struct_pack iterations={}, avg serialization time: {} ns, avg deserialization time: {} ns", iterations, serialize_time / iterations, deserialize_time / iterations);
+    }
+    {
+        long serialize_time = 0;
+        long deserialize_time = 0;
+        for (size_t i = 0; i < iterations; ++i) {
+            auto start = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            nlohmann::json j = tick;
+            auto mid = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            ATickL2 tick2;
+            j.get_to(tick2);
+            auto end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            serialize_time += mid - start;
+            deserialize_time += end - mid;
+        }
+        fmt::println("nlohmann iterations={}, avg serialization time: {} ns, avg deserialization time: {} ns", iterations, serialize_time / iterations, deserialize_time / iterations);
+    }
+}
+```
