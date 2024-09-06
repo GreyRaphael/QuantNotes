@@ -13,6 +13,7 @@
     - [serde for rust](#serde-for-rust)
     - [serde between cpp and python with nng](#serde-between-cpp-and-python-with-nng)
   - [serde by yalantinglibs](#serde-by-yalantinglibs)
+    - [struct\_pack absl container](#struct_pack-absl-container)
 
 
 ## parse bytes manually
@@ -787,6 +788,62 @@ int main(int argc, char** argv) {
             deserialize_time += end - mid;
         }
         fmt::println("nlohmann iterations={}, avg serialization time: {} ns, avg deserialization time: {} ns", iterations, serialize_time / iterations, deserialize_time / iterations);
+    }
+}
+```
+
+### struct_pack absl container
+
+```cmake
+cmake_minimum_required(VERSION 3.24.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(proj1 main.cpp)
+
+include(FetchContent)
+FetchContent_Declare(
+    yalantinglibs
+    GIT_REPOSITORY https://github.com/alibaba/yalantinglibs.git
+    GIT_TAG main
+    GIT_SHALLOW 1
+)
+FetchContent_MakeAvailable(yalantinglibs)
+target_link_libraries(proj1 PRIVATE yalantinglibs::yalantinglibs)
+
+# this is heuristically generated, and may not be correct
+find_package(absl CONFIG REQUIRED)
+# note: 180 additional targets are not displayed.
+target_link_libraries(proj1 PRIVATE absl::container_common absl::flat_hash_map)
+```
+
+as absl obey the `template <typename Key, typename Value>` constraint
+
+```cpp
+// main.cpp
+#include <absl/container/btree_set.h>
+#include <absl/container/flat_hash_map.h>
+#include <ylt/struct_pack.hpp>
+#include <cstdio>
+
+struct MyStruct {
+    absl::btree_set<double> bset;
+    absl::flat_hash_map<int, double> map;
+};
+
+int main(int argc, char const *argv[]) {
+    MyStruct data{{8, 9, 10, 3, 1}, {{1, 11.1}, {2, 12.2}, {3, 13.3}}};
+
+    // serialize
+    auto buf = struct_pack::serialize(data);
+    // deserialize
+    auto data2 = struct_pack::deserialize<MyStruct>(buf);
+    for (auto &&e : data2->bset) {
+        printf("%f\t", e);
+    }
+    printf("\n");
+    for (auto &&[k, v] : data2->map) {
+        printf("key=%d, value=%f\n", k, v);
     }
 }
 ```
