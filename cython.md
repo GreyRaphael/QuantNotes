@@ -4,6 +4,7 @@
   - [wrapper pure python](#wrapper-pure-python)
   - [cython inherit c++ class](#cython-inherit-c-class)
   - [inherit c++ pure virtual class](#inherit-c-pure-virtual-class)
+    - [simple example](#simple-example)
     - [only build library](#only-build-library)
     - [pybind11 build whl](#pybind11-build-whl)
 
@@ -273,6 +274,54 @@ if __name__ == "__main__":
 ## inherit c++ pure virtual class
 
 > recommended for pybind11, not recommended for cython, [notes](https://zyxin.xyz/blog/2019-08/glue-python-cpp/#boostpythonpybind11-vs-cython)
+
+### simple example
+
+`pip install pybind11`
+
+```bash
+main.cpp
+setup.py
+```
+
+```py
+# setup.py
+from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
+import pybind11
+
+ext_modules = [
+    Extension(
+        name="proj1",
+        sources=[
+            "main.cpp",
+        ],
+        include_dirs=[
+            pybind11.get_include(),  # Path to pybind11 headers
+        ],
+        language="c++",
+        extra_compile_args=["-std=c++20"],  # depends on compiler
+    ),
+]
+
+setup(
+    name="proj1",
+    version="1.0.0",
+    ext_modules=ext_modules,
+    cmdclass={"build_ext": build_ext},
+    zip_safe=False,
+)
+```
+
+```cpp
+// main.cpp
+#include <pybind11/pybind11.h>
+
+PYBIND11_MODULE(proj1, m) {
+    m.def("subi", [](int i, int j) { return i - j; }, "integer substract y from x, proj1.sub(x,y)");
+    m.def("subd", [](double i, double j) { return i - j; }, "double substract y from x, proj1.sub(x,y)");
+}
+```
 
 ### only build library
 
