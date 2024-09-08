@@ -808,8 +808,7 @@ target_link_libraries(sub PRIVATE eCAL::core)
 ```cpp
 // pub.cpp
 #include <ecal/ecal.h>
-#include <ecal/msg/string/publisher.h>
-#include <string>
+#include <cstdio>
 
 struct Stock {
     int id;
@@ -819,20 +818,21 @@ struct Stock {
 
 int main(int argc, char **argv) {
     // initialize eCAL API
-    eCAL::Initialize(argc, argv, "minimal_snd");
+    eCAL::Initialize(argc, argv, "binary_snd");
 
-    // publisher for topic "Hello"
-    eCAL::string::CPublisher<std::string> pub("Hello");
+    // publisher for topic "blob"
+    eCAL::CPublisher pub("blob");
 
     // send updates
     int i = 0;
     while (eCAL::Ok()) {
-        Stock tick{i, i * 1.1, i * 100};
+        auto tick = Stock{i, i * 1.1, i * 100};
 
-        // send content
-        auto view = std::string{reinterpret_cast<char *>(&tick), sizeof(Stock)};
-        pub.Send(view, i++);
-        // sleep 1000 ms
+        // send buffer
+        pub.Send(&tick, sizeof(Stock));
+        printf("publisher send i=%d\n", i++);
+
+        // sleep 100 ms
         eCAL::Process::SleepMS(1000);
     }
 
@@ -844,7 +844,6 @@ int main(int argc, char **argv) {
 ```cpp
 // sub.cpp
 #include <ecal/ecal.h>
-#include <ecal/msg/string/subscriber.h>
 #include <cstdio>
 
 struct Stock {
@@ -853,22 +852,25 @@ struct Stock {
     int volume;
 };
 
-int main(int argc, char **argv) {
+// subscriber callback function
+void OnReceive(const char* /*topic_name_*/, const struct eCAL::SReceiveCallbackData* data_) {
+    if (data_->size < 1) return;
+    auto tick = reinterpret_cast<Stock*>(data_->buf);
+    printf("subscriber recv: id=%d, price=%f,volume=%d\n", tick->id, tick->price, tick->volume);
+}
+
+int main(int argc, char** argv) {
     // initialize eCAL API
-    eCAL::Initialize(argc, argv, "minimal_rec");
+    eCAL::Initialize(argc, argv, "binary_rec");
 
-    // subscriber for topic "Hello"
-    eCAL::string::CSubscriber<std::string> sub("Hello");
+    // subscriber for topic "blob"
+    eCAL::CSubscriber sub("blob");
 
-    // receive updates
-    std::string rcv_content;
-    while (eCAL::Ok()) {
-        // receive content
-        if (sub.Receive(rcv_content, nullptr, 100)) {
-            auto tick = reinterpret_cast<Stock *>(rcv_content.data());
-            printf("tick id=%d, price=%f, volume=%d\n", tick->id, tick->price, tick->volume);
-        }
-    }
+    // assign callback
+    sub.AddReceiveCallback(OnReceive);
+
+    // idle main loop
+    while (eCAL::Ok()) eCAL::Process::SleepMS(500);
 
     // finalize eCAL API
     eCAL::Finalize();
