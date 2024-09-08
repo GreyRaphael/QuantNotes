@@ -18,6 +18,7 @@
       - [cpp nng for Req0 and Rep0](#cpp-nng-for-req0-and-rep0)
     - [nng for rust](#nng-for-rust)
   - [`cpp-ipc` usage](#cpp-ipc-usage)
+  - [`ecal` for ipc](#ecal-for-ipc)
 
 ## nng or pynng
 
@@ -773,5 +774,102 @@ void do_recv(int interval) {
 
 int main() {
     do_recv(500);
+}
+```
+
+## `ecal` for ipc
+
+`vcpkg install ecal`
+
+simple pub/sub
+
+```bash
+.
+├── CMakeLists.txt
+├── pub.cpp
+└── sub.cpp
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(pub pub.cpp)
+add_executable(sub sub.cpp)
+
+find_package(eCAL CONFIG REQUIRED)
+target_link_libraries(pub PRIVATE eCAL::core)
+target_link_libraries(sub PRIVATE eCAL::core)
+```
+
+```cpp
+// pub.cpp
+#include <ecal/ecal.h>
+#include <ecal/msg/string/publisher.h>
+#include <string>
+
+struct Stock {
+    int id;
+    double price;
+    int volume;
+};
+
+int main(int argc, char **argv) {
+    // initialize eCAL API
+    eCAL::Initialize(argc, argv, "minimal_snd");
+
+    // publisher for topic "Hello"
+    eCAL::string::CPublisher<std::string> pub("Hello");
+
+    // send updates
+    int i = 0;
+    while (eCAL::Ok()) {
+        Stock tick{i, i * 1.1, i * 100};
+
+        // send content
+        auto view = std::string{reinterpret_cast<char *>(&tick), sizeof(Stock)};
+        pub.Send(view, i++);
+        // sleep 1000 ms
+        eCAL::Process::SleepMS(1000);
+    }
+
+    // finalize eCAL API
+    eCAL::Finalize();
+}
+```
+
+```cpp
+// sub.cpp
+#include <ecal/ecal.h>
+#include <ecal/msg/string/subscriber.h>
+#include <cstdio>
+
+struct Stock {
+    int id;
+    double price;
+    int volume;
+};
+
+int main(int argc, char **argv) {
+    // initialize eCAL API
+    eCAL::Initialize(argc, argv, "minimal_rec");
+
+    // subscriber for topic "Hello"
+    eCAL::string::CSubscriber<std::string> sub("Hello");
+
+    // receive updates
+    std::string rcv_content;
+    while (eCAL::Ok()) {
+        // receive content
+        if (sub.Receive(rcv_content, nullptr, 100)) {
+            auto tick = reinterpret_cast<Stock *>(rcv_content.data());
+            printf("tick id=%d, price=%f, volume=%d\n", tick->id, tick->price, tick->volume);
+        }
+    }
+
+    // finalize eCAL API
+    eCAL::Finalize();
 }
 ```
