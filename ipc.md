@@ -822,6 +822,7 @@ int main(int argc, char **argv) {
 
     // publisher for topic "blob"
     eCAL::CPublisher pub("blob");
+    pub.ShmEnableZeroCopy(true);
 
     // send updates
     int i = 0;
