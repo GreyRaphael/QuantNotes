@@ -781,6 +781,8 @@ int main() {
 
 [ecal](https://github.com/eclipse-ecal/ecal) is based on [iceoryx](https://github.com/eclipse-iceoryx/iceoryx), but `iceoryx` is not available on windows over shm
 > `vcpkg install ecal`
+- ecal shm transport based on [mutex](https://eclipse-ecal.github.io/ecal/advanced/layers/shm.html), not perficient than `cpp-ipc`
+- switch between `shm` and `tcp` is very easy by `ecal.ini` file
 
 simple pub/sub
 
