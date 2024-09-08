@@ -779,7 +779,8 @@ int main() {
 
 ## `ecal` for ipc
 
-`vcpkg install ecal`
+[ecal](https://github.com/eclipse-ecal/ecal) is based on [iceoryx](https://github.com/eclipse-iceoryx/iceoryx), but `iceoryx` is not available on windows over shm
+> `vcpkg install ecal`
 
 simple pub/sub
 
