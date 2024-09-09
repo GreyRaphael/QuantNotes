@@ -748,9 +748,7 @@ int main() {
 
 ```cpp
 // consumer.cpp
-
 #include <fmt/core.h>
-
 #include "libipc/ipc.h"
 
 struct Stock {
