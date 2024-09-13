@@ -7,6 +7,7 @@
     - [transfer file between processes by `SharedMemory`](#transfer-file-between-processes-by-sharedmemory)
     - [transfer file between processes by `mmap` in windows](#transfer-file-between-processes-by-mmap-in-windows)
     - [transfer file between processes by `mmap` in linux](#transfer-file-between-processes-by-mmap-in-linux)
+  - [Transfer file between processes by boost.interprocess](#transfer-file-between-processes-by-boostinterprocess)
 
 
 ## Reading a Memory-Mapped File With mmap
@@ -349,4 +350,111 @@ with open("/tmp/shm_test", "r+b") as f:
         file.write(data)
 
     shm.close()
+```
+
+## Transfer file between processes by boost.interprocess
+
+` vcpkg install boost-interprocess`
+
+```bash
+.
+├── CMakeLists.txt
+├── recver.cpp
+└── sender.cpp
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(sender sender.cpp)
+add_executable(recver recver.cpp)
+
+find_package(Boost REQUIRED COMPONENTS interprocess)
+target_link_libraries(sender PRIVATE Boost::interprocess)
+target_link_libraries(recver PRIVATE Boost::interprocess)
+```
+
+```cpp
+// sender.cpp
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <cstdio>
+#include <fstream>
+#include <iostream>
+
+using namespace boost::interprocess;
+
+int main() {
+    // Remove shared memory on construction and destruction
+    struct shm_remove {
+        shm_remove() { shared_memory_object::remove("shm_test"); }
+        ~shm_remove() { shared_memory_object::remove("shm_test"); }
+    } remover;
+
+    // Open the file
+    std::ifstream file("data.ipc", std::ios::binary);
+    if (!file) {
+        std::cerr << "Error opening file\n";
+        return 1;
+    }
+
+    // Get file size
+    file.seekg(0, std::ios::end);
+    std::size_t fileSize = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    // Create a shared memory object
+    shared_memory_object shm(create_only, "shm_test", read_write);
+
+    // Set size of the shared memory
+    shm.truncate(fileSize);
+
+    // Map the whole shared memory in this process
+    mapped_region region(shm, read_write);
+
+    // Get the address of the mapped region
+    void* addr = region.get_address();
+
+    // Read file content into shared memory
+    file.read(static_cast<char*>(addr), fileSize);
+
+    getchar();
+}
+```
+
+```cpp
+// recver.cpp
+#include <boost/interprocess/mapped_region.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <fstream>
+#include <iostream>
+
+using namespace boost::interprocess;
+
+int main() {
+    // Open the shared memory object
+    shared_memory_object shm(open_only, "shm_test", read_only);
+
+    // Map the whole shared memory in this process
+    mapped_region region(shm, read_only);
+
+    // Get the address of the mapped region
+    void* addr = region.get_address();
+    std::size_t size = region.get_size();
+
+    // Open the output file
+    std::ofstream file("data_out.bin", std::ios::binary);
+    if (!file) {
+        std::cerr << "Error opening file\n";
+        return 1;
+    }
+
+    // Write shared memory content to file
+    file.write(static_cast<char*>(addr), size);
+
+    return 0;
+}
 ```
