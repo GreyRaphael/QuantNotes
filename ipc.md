@@ -19,6 +19,7 @@
     - [nng for rust](#nng-for-rust)
   - [`cpp-ipc` usage](#cpp-ipc-usage)
   - [`ecal` for ipc](#ecal-for-ipc)
+  - [custom cross-platform ipc](#custom-cross-platform-ipc)
 
 ## nng or pynng
 
@@ -875,5 +876,345 @@ int main(int argc, char** argv) {
 
     // finalize eCAL API
     eCAL::Finalize();
+}
+```
+
+## custom cross-platform ipc
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(pub VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(pub pub.cpp)
+add_executable(sub sub.cpp)
+```
+
+```cpp
+// pub.cpp
+#include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <thread>
+#include <type_traits>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
+// Define the data structure to be sent through the ring buffer
+struct MyData {
+    int id;
+    double value;
+    char name[16];
+};
+
+struct AnotherData {
+    float x;
+    float y;
+    char label[32];
+};
+
+// Constants for shared memory
+#define SHARED_MEMORY_NAME "my_ring_buffer"
+#define BUFFER_CAPACITY 1024  // Number of entries in the buffer
+#define MAX_READERS 16
+
+// Template structure of the ring buffer in shared memory
+template <typename T>
+struct RingBuffer {
+    std::atomic<size_t> writeIndex;                // Index where the writer will write next
+    std::atomic<size_t> readerCount;               // Number of readers currently registered
+    std::atomic<size_t> readIndices[MAX_READERS];  // Each reader's read index
+    T data[BUFFER_CAPACITY];                       // The actual data buffer
+};
+
+#ifdef _WIN32
+HANDLE hMapFile = NULL;  // Global handle for the shared memory
+#endif
+
+// Function to create shared memory
+void* create_shared_memory(size_t size) {
+    void* ptr = nullptr;
+#ifdef _WIN32
+    hMapFile = CreateFileMapping(
+        INVALID_HANDLE_VALUE,  // Use paging file
+        NULL,                  // Default security
+        PAGE_READWRITE,        // Read/write access
+        0,                     // Maximum object size (high-order DWORD)
+        size,                  // Maximum object size (low-order DWORD)
+        SHARED_MEMORY_NAME);   // Name of mapping object
+
+    if (hMapFile == NULL) {
+        std::cerr << "Could not create file mapping object (" << GetLastError() << ").\n";
+        exit(EXIT_FAILURE);
+    }
+
+    ptr = MapViewOfFile(
+        hMapFile,             // Handle to map object
+        FILE_MAP_ALL_ACCESS,  // Read/write permission
+        0,
+        0,
+        size);
+
+    if (ptr == NULL) {
+        std::cerr << "Could not map view of file (" << GetLastError() << ").\n";
+        CloseHandle(hMapFile);
+        exit(EXIT_FAILURE);
+    }
+#else
+    int fd = shm_open(SHARED_MEMORY_NAME, O_CREAT | O_RDWR, 0666);
+    if (fd == -1) {
+        perror("shm_open");
+        exit(EXIT_FAILURE);
+    }
+
+    if (ftruncate(fd, size) == -1) {
+        perror("ftruncate");
+        exit(EXIT_FAILURE);
+    }
+
+    ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) {
+        perror("mmap");
+        exit(EXIT_FAILURE);
+    }
+
+    close(fd);  // fd is no longer needed
+#endif
+    return ptr;
+}
+
+// Function to destroy shared memory
+void destroy_shared_memory(void* ptr, size_t size) {
+#ifdef _WIN32
+    UnmapViewOfFile(ptr);
+    if (hMapFile != NULL) {
+        CloseHandle(hMapFile);
+    }
+#else
+    munmap(ptr, size);
+    shm_unlink(SHARED_MEMORY_NAME);
+#endif
+}
+
+int main() {
+    using T = MyData;  // Type of data to store in the ring buffer
+
+    // Ensure T is trivially copyable
+    static_assert(std::is_trivially_copyable<T>::value, "RingBuffer requires a trivially copyable type");
+
+    size_t size = sizeof(RingBuffer<T>);
+    RingBuffer<T>* ringBuffer = static_cast<RingBuffer<T>*>(create_shared_memory(size));
+
+    // Initialize the ring buffer
+    ringBuffer->writeIndex.store(0, std::memory_order_relaxed);
+    ringBuffer->readerCount.store(0, std::memory_order_relaxed);
+    for (size_t i = 0; i < MAX_READERS; ++i) {
+        ringBuffer->readIndices[i].store(0, std::memory_order_relaxed);
+    }
+
+    // Start writing data into the ring buffer
+    size_t index = 0;
+    while (true) {
+        // Prepare data to write
+        T myData;
+        myData.id = static_cast<int>(index);
+        myData.value = index * 0.1;
+        snprintf(myData.name, sizeof(myData.name), "Data%zu", index);
+
+        size_t writeIndex = ringBuffer->writeIndex.load(std::memory_order_relaxed);
+
+        // Find the minimum read index among all readers
+        size_t minReadIndex = SIZE_MAX;
+        size_t readerCount = ringBuffer->readerCount.load(std::memory_order_acquire);
+        for (size_t i = 0; i < readerCount; ++i) {
+            size_t readerIndex = ringBuffer->readIndices[i].load(std::memory_order_acquire);
+            if (readerIndex < minReadIndex) {
+                minReadIndex = readerIndex;
+            }
+        }
+
+        // Check if the buffer is full
+        if (writeIndex - minReadIndex >= BUFFER_CAPACITY) {
+            std::cerr << "Buffer is full, writer is waiting...\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
+        // Write data into the buffer
+        ringBuffer->data[writeIndex % BUFFER_CAPACITY] = myData;
+
+        // Update the write index
+        ringBuffer->writeIndex.store(writeIndex + 1, std::memory_order_release);
+
+        std::cout << "Writer wrote: id=" << myData.id << ", value=" << myData.value << ", name=" << myData.name << "\n";
+        ++index;
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    // Cleanup (unreachable in this infinite loop, but good practice)
+    destroy_shared_memory(ringBuffer, size);
+    return 0;
+}
+```
+
+```cpp
+// sub.cpp
+#include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <thread>
+#include <type_traits>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
+// Define the data structure to be received through the ring buffer
+struct MyData {
+    int id;
+    double value;
+    char name[16];
+};
+
+struct AnotherData {
+    float x;
+    float y;
+    char label[32];
+};
+
+// Constants for shared memory
+#define SHARED_MEMORY_NAME "my_ring_buffer"
+#define BUFFER_CAPACITY 1024  // Number of entries in the buffer
+#define MAX_READERS 16
+
+// Template structure of the ring buffer in shared memory
+template <typename T>
+struct RingBuffer {
+    std::atomic<size_t> writeIndex;                // Index where the writer will write next
+    std::atomic<size_t> readerCount;               // Number of readers currently registered
+    std::atomic<size_t> readIndices[MAX_READERS];  // Each reader's read index
+    T data[BUFFER_CAPACITY];                       // The actual data buffer
+};
+
+#ifdef _WIN32
+HANDLE hMapFile = NULL;  // Global handle for the shared memory
+#endif
+
+// Function to open shared memory
+void* open_shared_memory(size_t size) {
+    void* ptr = nullptr;
+#ifdef _WIN32
+    hMapFile = OpenFileMapping(
+        FILE_MAP_ALL_ACCESS,  // Read/write access
+        FALSE,                // Do not inherit the name
+        SHARED_MEMORY_NAME);  // Name of mapping object
+
+    if (hMapFile == NULL) {
+        std::cerr << "Could not open file mapping object (" << GetLastError() << ").\n";
+        exit(EXIT_FAILURE);
+    }
+
+    ptr = MapViewOfFile(
+        hMapFile,             // Handle to map object
+        FILE_MAP_ALL_ACCESS,  // Read/write permission
+        0,
+        0,
+        size);
+
+    if (ptr == NULL) {
+        std::cerr << "Could not map view of file (" << GetLastError() << ").\n";
+        CloseHandle(hMapFile);
+        exit(EXIT_FAILURE);
+    }
+#else
+    int fd = shm_open(SHARED_MEMORY_NAME, O_RDWR, 0666);
+    if (fd == -1) {
+        perror("shm_open");
+        exit(EXIT_FAILURE);
+    }
+
+    ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) {
+        perror("mmap");
+        exit(EXIT_FAILURE);
+    }
+
+    close(fd);  // fd is no longer needed
+#endif
+    return ptr;
+}
+
+// Function to close shared memory
+void close_shared_memory(void* ptr, size_t size) {
+#ifdef _WIN32
+    UnmapViewOfFile(ptr);
+    if (hMapFile != NULL) {
+        CloseHandle(hMapFile);
+    }
+#else
+    munmap(ptr, size);
+    // Do not unlink; the writer handles that
+#endif
+}
+
+int main() {
+    using T = MyData;  // Type of data to read from the ring buffer
+
+    // Ensure T is trivially copyable
+    static_assert(std::is_trivially_copyable<T>::value, "RingBuffer requires a trivially copyable type");
+
+    size_t size = sizeof(RingBuffer<T>);
+    RingBuffer<T>* ringBuffer = static_cast<RingBuffer<T>*>(open_shared_memory(size));
+
+    // Register this reader and obtain a reader ID
+    size_t readerId = ringBuffer->readerCount.fetch_add(1, std::memory_order_acq_rel);
+    if (readerId >= MAX_READERS) {
+        std::cerr << "Maximum number of readers reached.\n";
+        exit(EXIT_FAILURE);
+    }
+
+    size_t readIndex = ringBuffer->readIndices[readerId].load(std::memory_order_relaxed);
+
+    // Start reading data from the ring buffer
+    while (true) {
+        size_t writeIndex = ringBuffer->writeIndex.load(std::memory_order_acquire);
+
+        // Check if there is new data to read
+        if (readIndex == writeIndex) {
+            // No new data available
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
+        // Read data from the buffer
+        T myData = ringBuffer->data[readIndex % BUFFER_CAPACITY];
+
+        // Update the read index
+        ++readIndex;
+        ringBuffer->readIndices[readerId].store(readIndex, std::memory_order_release);
+
+        std::cout << "Reader " << readerId << " read: id=" << myData.id << ", value=" << myData.value << ", name=" << myData.name << "\n";
+    }
+
+    // Cleanup (unreachable in this infinite loop, but good practice)
+    close_shared_memory(ringBuffer, size);
+    return 0;
 }
 ```
