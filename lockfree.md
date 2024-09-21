@@ -1,11 +1,11 @@
 # Lock-free programming
 
 - [Lock-free programming](#lock-free-programming)
-  - [SPMC broadcast](#spmc-broadcast)
+  - [SPMC Multicast](#spmc-multicast)
 
-## SPMC broadcast
+## SPMC Multicast
 
-support SPSC and SPMC broadcast.
+support SPSC and SPMC Multicast.
 
 ```cpp
 #include <array>
