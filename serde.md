@@ -12,6 +12,7 @@
     - [serde for cpp](#serde-for-cpp)
     - [serde for rust](#serde-for-rust)
     - [serde between cpp and python with nng](#serde-between-cpp-and-python-with-nng)
+    - [serde for cpp pratical](#serde-for-cpp-pratical)
   - [serde by yalantinglibs](#serde-by-yalantinglibs)
     - [struct\_pack absl container](#struct_pack-absl-container)
 
@@ -550,6 +551,110 @@ if __name__ == "__main__":
         subscribe()
     except KeyboardInterrupt:
         pass
+```
+
+### serde for cpp pratical
+
+- `vcpkg install fmt flatbuffers`
+- `flatc datatypes.fbs --cpp --cpp-std c++17`
+
+```bash
+.
+├── CMakeLists.txt
+├── datatypes.fbs
+├── datatypes_generated.h # generated
+└── main.cpp
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(proj VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(proj1 main.cpp)
+
+find_package(fmt CONFIG REQUIRED)
+target_link_libraries(proj1 PRIVATE fmt::fmt)
+
+find_package(flatbuffers CONFIG REQUIRED)
+target_link_libraries(proj1 PRIVATE flatbuffers::flatbuffers)
+```
+
+```cpp
+// datatypes.fbs
+namespace Messages;
+
+// Enum to identify the type of message
+enum MessageType : byte {
+    NONE = 0,
+    BarData = 1,
+    TickData = 2
+}
+
+// Table representing BarData
+table BarData {
+    id: int;             // int32_t id
+    symbol: string;      // char symbol[6] represented as a string
+    price: float;        // float price
+    volume: long;        // int64_t volume
+    amount: double;      // double amount
+}
+
+// Table representing TickData
+table TickData {
+    id: int;                 // int32_t id
+    symbol: string;          // char symbol[6] represented as a string
+    open: double;            // double open
+    high: double;            // double high
+    volumes: [int];          // int volumes[10] represented as a vector of ints
+}
+
+// Union to hold either BarData or TickData
+union Payload {
+    BarData,
+    TickData
+}
+
+// Root table that encapsulates any message
+table Message {
+    type: MessageType;       // Type identifier
+    payload: Payload;        // Payload containing the actual data
+}
+
+// Specify Message as the root type
+root_type Message;
+```
+
+- `GetCurrentBufferPointer` is before `build.Finish()`
+- `GetBufferPointer` is after `build.Finish()`
+
+```cpp
+// main.cpp
+#include <flatbuffers/flatbuffers.h>
+#include <fmt/core.h>
+#include <fmt/format.h>
+#include "datatypes_generated.h"
+
+int main() {
+    flatbuffers::FlatBufferBuilder builder;
+
+    auto bar1 = Messages::CreateBarDataDirect(builder, 1, "APPLE", 12.3, 1000, 12300.0);
+    auto msg1 = Messages::CreateMessage(builder, Messages::MessageType::BarData, Messages::Payload::BarData, bar1.Union());
+    fmt::println("size={}, addr={}", builder.GetSize(), fmt::ptr(builder.GetCurrentBufferPointer()));
+
+    auto bar2 = Messages::CreateBarDataDirect(builder, 2, "APPLE", 12.3, 1000, 12300.0);
+    auto msg2 = Messages::CreateMessage(builder, Messages::MessageType::BarData, Messages::Payload::BarData, bar2.Union());
+    fmt::println("size={}, addr={}", builder.GetSize(), fmt::ptr(builder.GetCurrentBufferPointer()));
+
+    //  builder.Finish() can be invoked only once
+    builder.Finish(msg1);  // print id 1
+    // builder.Finish(msg2);  // print id 2
+    auto bar_ptr = builder.GetBufferPointer();
+    fmt::println("size={}, addr={}", builder.GetSize(), fmt::ptr(bar_ptr));
+    auto msg = Messages::GetMessage(bar_ptr);
+    fmt::println("id {}", msg->payload_as_BarData()->id());
+}
 ```
 
 ## serde by yalantinglibs
