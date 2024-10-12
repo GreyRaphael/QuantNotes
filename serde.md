@@ -710,6 +710,67 @@ int main() {
 }
 ```
 
+if change schema with list
+
+```cpp
+namespace Messages;
+
+// Existing enums and tables...
+
+// Root table that encapsulates any message
+table Message {
+    type: MessageType;       // Type identifier
+    payload: Payload;        // Payload containing the actual data
+}
+
+// New table to hold a list of messages
+table MessageList {
+    messages: [Message];
+}
+
+root_type MessageList;
+```
+
+```cpp
+// main.cpp
+#include <flatbuffers/flatbuffers.h>
+#include <fmt/core.h>
+#include "datatypes_generated.h"
+
+int main() {
+    flatbuffers::FlatBufferBuilder builder;
+
+    // Create BarData message
+    auto bar = Messages::CreateBarDataDirect(builder, 1, "apple", 12.3f, 1000, 2300.0);
+    auto msg1 = Messages::CreateMessage(builder, Messages::MessageType::BarData, Messages::Payload::BarData, bar.Union());
+
+    // Create TickData message
+    std::vector<int> vols{1, 2, 3, 45};
+    auto tick = Messages::CreateTickDataDirect(builder, 2, "msft", 12.3, 12.4, &vols);
+    auto msg2 = Messages::CreateMessage(builder, Messages::MessageType::TickData, Messages::Payload::TickData, tick.Union());
+
+    // Create a vector of messages
+    std::vector<flatbuffers::Offset<Messages::Message>> message_vector;
+    message_vector.push_back(msg1);
+    message_vector.push_back(msg2);
+
+    auto message_list = Messages::CreateMessageList(builder, builder.CreateVector(message_vector));
+    builder.Finish(message_list);
+
+    // deserialize
+    auto msg_list_ptr = Messages::GetMessageList(builder.GetBufferPointer());
+    for (auto msg_ptr : *msg_list_ptr->messages()) {
+        if (msg_ptr->type() == Messages::MessageType::BarData) {
+            auto bar = msg_ptr->payload_as_BarData();
+            fmt::println("bar id={}", bar->id());
+        } else if (msg_ptr->type() == Messages::MessageType::TickData) {
+            auto tick = msg_ptr->payload_as_TickData();
+            fmt::println("tick id={}", tick->id());
+        }
+    }
+}
+```
+
 ## serde by yalantinglibs
 
 ```bash
