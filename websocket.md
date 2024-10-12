@@ -1,6 +1,9 @@
 # Websocket
 
 - [Websocket](#websocket)
+  - [websocket vs tcp](#websocket-vs-tcp)
+    - [Fundamental Differences](#fundamental-differences)
+    - [Practical Considerations](#practical-considerations)
   - [python websocket](#python-websocket)
     - [python async basic](#python-async-basic)
     - [py websocket server](#py-websocket-server)
@@ -12,6 +15,71 @@
     - [cinatra websocket client](#cinatra-websocket-client)
     - [nng websocket client](#nng-websocket-client)
     - [libhv websocket client and server](#libhv-websocket-client-and-server)
+
+## websocket vs tcp
+
+- TCP offers a robust, low-level foundation for reliable data transmission, requiring more effort to build higher-level features. 
+- In contrast, WebSocket provides a convenient, message-oriented protocol tailored for real-time web applications, handling many common features like **heartbeats** and **reconnections** out of the box or through existing libraries.
+
+### Fundamental Differences
+
+**a. TCP Server**
+
+- **Communication Style:** Provides a reliable, ordered, and error-checked delivery of a stream of bytes between applications.
+- **Use Cases:** Low-level network applications, custom protocols, file transfers (e.g., FTP), email (SMTP), and other applications requiring reliable data transmission.
+- **Timeouts:**
+  - **Idle Timeouts:** TCP itself doesn’t define idle timeouts; these are typically managed by the operating system or application.
+  - **Keep-Alive Mechanism:** TCP can use keep-alive packets to check if the connection is still active. If keep-alive probes fail, the connection is considered dead.
+- **Reconnections:**
+  - **Handled at the Application Layer:** Since TCP is a lower-level protocol, reconnection logic must be implemented by the application.
+  - **Custom Logic:** Applications often implement retry mechanisms, exponential backoff strategies, and state synchronization upon reconnection.
+- **Operation:**
+  - Establishes a connection using a three-way handshake (SYN, SYN-ACK, ACK).
+  - Maintains the connection as long as both parties keep it open.
+  - Manages data transmission reliability, flow control, and congestion control.
+
+**b. WebSocket Server**
+
+- **Communication Style:** Provides full-duplex (two-way) communication channels over a single, long-lived TCP connection, primarily designed for web applications.
+- **Use Cases:** Real-time web applications like chat apps, live notifications, gaming, collaborative tools, and any scenario requiring instant data exchange between client and server.
+- **Timeouts:**
+  - **Ping/Pong Frames:** WebSocket protocol includes ping and pong frames to keep the connection alive and detect dead peers.
+  - **Heartbeat Mechanisms:** Applications often implement heartbeats at the application layer to monitor connection health.
+- **Reconnections:**
+  - **Client-Side Handling:** WebSocket clients (e.g., browsers using JavaScript) typically include reconnection logic to re-establish connections when disrupted.
+  - **Libraries and Frameworks:** Many WebSocket client libraries offer built-in support for automatic reconnection with configurable parameters like retry intervals and maximum attempts.
+  - **Graceful Recovery:** On reconnection, clients and servers may need to resynchronize state or re-authenticate, depending on the application’s requirements.
+- **Operation:**
+  - Initiates communication with an HTTP/HTTPS handshake to establish the WebSocket connection.
+  - Upgrades the HTTP connection to a WebSocket connection.
+  - Allows both client and server to send messages independently over the same connection without the overhead of HTTP headers for each message.
+
+| Feature                  | TCP Server                                      | WebSocket Server                                    |
+|--------------------------|-------------------------------------------------|-----------------------------------------------------|
+| **Protocol Type**        | Transport Layer Protocol(OSI Layer4)            | Application Layer Protocol(OSI Layer7)              |
+| **Protocol**             | Transmission Control Protocol (TCP)             | RFC 6455(built on top of TCP)                       |
+| **Communication**        | Stream-oriented, byte-based                     | Message-oriented, text or binary-based              |
+| **Connection Handling**  | Manages connections at a low level               | Manages connections at a higher, application level  |
+| **Use in Web Context**   | Not directly used; requires additional layers    | Natively supported in web browsers via JavaScript    |
+| **Handshake Process**    | Three-way TCP handshake                          | HTTP handshake with an upgrade to WebSocket          |
+| **Data Framing**         | No inherent message framing                     | Defines message frames for structured data transfer  |
+| **Security**             | Typically secured using TLS (e.g., TCP over TLS)| Can use WSS (WebSocket Secure) over TLS               |
+| **Built-in Features**    | Reliability, ordering, flow control             | Full-duplex communication, message broadcasting      |
+| **Scalability**          | Requires careful management for large-scale apps | Easier integration with web infrastructure            |
+
+### Practical Considerations
+
+- **Ease of Use:**
+  - **TCP:** Requires more effort to implement higher-level features like message framing, heartbeats, and reconnection logic.
+  - **WebSocket:** Provides these features as part of the protocol or through widely available libraries, especially in web environments.
+
+- **Performance:**
+  - **TCP:** Potentially lower latency due to less protocol overhead, suitable for applications where performance is critical and protocols can be optimized.
+  - **WebSocket:** Slightly higher overhead due to message framing and higher-level abstractions but generally sufficient for most real-time web applications.
+
+- **Interoperability:**
+  - **TCP:** Best suited for non-web applications or scenarios where clients and servers are under controlled environments.
+  - **WebSocket:** Ideal for web-based applications, with native support in browsers and compatibility with existing web infrastructure (e.g., proxies, load balancers).
 
 ## python websocket
 
