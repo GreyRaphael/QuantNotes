@@ -657,6 +657,59 @@ int main() {
 }
 ```
 
+practical example
+
+```cpp
+// main.cpp
+void serialize_bar_data(flatbuffers::FlatBufferBuilder& builder) {
+    auto bar = Messages::CreateBarDataDirect(builder, 1, "apple", 12.3, 1000, 2300.0);
+    auto msg1 = Messages::CreateMessage(builder, Messages::MessageType::BarData, Messages::Payload::BarData, bar.Union());
+    builder.Finish(msg1);
+}
+
+void serialize_tick_data(flatbuffers::FlatBufferBuilder& builder) {
+    std::vector<int> vols{1, 2, 3, 45};
+    auto tick = Messages::CreateTickDataDirect(builder, 2, "msft", 12.3, 12.4, &vols);
+    auto msg2 = Messages::CreateMessage(builder, Messages::MessageType::TickData, Messages::Payload::TickData, tick.Union());
+    builder.Finish(msg2);
+}
+
+void deserialize_messages(const uint8_t* buffer, size_t size) {
+    auto msg_ptr = Messages::GetMessage(buffer);
+
+    if (msg_ptr->type() == Messages::MessageType::BarData) {
+        auto bar = msg_ptr->payload_as_BarData();
+        fmt::println("Deserialized BarData, id={}, symbol={}, price={}, volume={}, amount={}", bar->id(), bar->symbol()->str(), bar->price(), bar->volume(), bar->amount());
+    } else if (msg_ptr->type() == Messages::MessageType::TickData) {
+        auto tick = msg_ptr->payload_as_TickData();
+        fmt::print("Deserialized TickData, id={}, symbol={}, open={}, high={}, volumes=[", tick->id(), tick->symbol()->str(), tick->open(), tick->high());
+
+        for (auto volume : *tick->volumes()) {
+            fmt::print("{} ", volume);
+        }
+        fmt::println("]");
+    }
+}
+
+int main() {
+    // Serialize BarData
+    flatbuffers::FlatBufferBuilder bar_builder;
+    serialize_bar_data(bar_builder);
+    std::cout << "Size after BarData: " << bar_builder.GetSize() << '\n';
+
+    // Serialize TickData
+    flatbuffers::FlatBufferBuilder tick_builder;
+    serialize_tick_data(tick_builder);
+    std::cout << "Size after TickData: " << tick_builder.GetSize() << '\n';
+
+    // Deserialize BarData
+    deserialize_messages(bar_builder.GetBufferPointer(), bar_builder.GetSize());
+
+    // Deserialize TickData
+    deserialize_messages(tick_builder.GetBufferPointer(), tick_builder.GetSize());
+}
+```
+
 ## serde by yalantinglibs
 
 ```bash
