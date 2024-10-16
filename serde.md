@@ -559,6 +559,8 @@ if __name__ == "__main__":
 - `vcpkg install fmt flatbuffers`
 - `flatc datatypes.fbs --cpp --cpp-std c++17`
 
+`flatc` prebuilt binary in `~/vcpkg/installed/x64-linux/tools/flatbuffers/`
+
 ```bash
 .
 ├── CMakeLists.txt
