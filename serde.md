@@ -1071,6 +1071,7 @@ int main(int argc, char const *argv[]) {
 ## serde benchmark
 
 summary: flatbuffers really is a good choice than protobuf
+> you can visit the benchmakr comparison graph in my onedrive
 
 ```bash
 # how to benchmark
