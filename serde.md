@@ -15,6 +15,7 @@
     - [serde for cpp pratical](#serde-for-cpp-pratical)
   - [serde by yalantinglibs](#serde-by-yalantinglibs)
     - [struct\_pack absl container](#struct_pack-absl-container)
+  - [serde benchmark](#serde-benchmark)
 
 
 ## parse bytes manually
@@ -1066,3 +1067,52 @@ int main(int argc, char const *argv[]) {
     }
 }
 ```
+
+## serde benchmark
+
+summary: flatbuffers really is a good choice than protobuf
+
+```bash
+# how to benchmark
+git clone https://github.com/alibaba/yalantinglibs.git
+cd yalantinglibs
+# modify the ~/yalantinglibs/vcpkg.json
+vi vcpkg.json
+# maybe prepare perl: sudo dnf instal perl
+
+# cmake build the project in release mode
+cd build/output/benchmakr
+# run benchmark
+./struct_pack_benchmark
+```
+
+```json
+// vcpkg.json
+{
+  "name": "yalantinglibs",
+  "version-string": "0.1.0",
+  "port-version": 1,
+  "homepage": "https://github.com/alibaba/yalantinglibs",
+  "description": "A collection of C++20 libraries, include async_simple, coro_rpc and struct_pack.",
+  "dependencies": [
+    "openssl",
+    "protobuf",
+    "flatbuffers"
+  ]
+}
+```
+
+| unit(ns)               | struct_pack | struct_pack_0_copy | struct_pb | flatbuffers | protobuf |
+| ---------------------- | ----------- | ------------------ | --------- | ----------- | -------- |
+| 1 rect serialize       | 4           |                    | 7         | 5           | 15       |
+| 20 rect serialize      | 11          | 11                 | 140       | 34          | 212      |
+| 1 person serialize     | 13          |                    | 15        | 33          | 83       |
+| 20 person serialize    | 300         | 308                | 443       | 1165        | 1639     |
+| 1 monster serialize    | 64          |                    | 21        | 136         | 88       |
+| 20 monster serialize   | 1252        | 1280               | 370       | 2967        | 1763     |
+| 1 rect deserialize     | 1           |                    | 6         | 2           | 18       |
+| 20 rect deserialize    | 20          | 3                  | 241       | 2           | 545      |
+| 1 person deserialize   | 22          |                    | 26        | 2           | 119      |
+| 20 person deserialize  | 741         | 69                 | 1050      | 2           | 3456     |
+| 1 monster deserialize  | 72          |                    | 24        | 2           | 322      |
+| 20 monster deserialize | 1906        | 905                | 1336      | 2           | 7137     |
