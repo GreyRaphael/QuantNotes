@@ -586,13 +586,6 @@ target_link_libraries(proj1 PRIVATE flatbuffers::flatbuffers)
 // datatypes.fbs
 namespace Messages;
 
-// Enum to identify the type of message
-enum MessageType : byte {
-    NONE = 0,
-    BarData = 1,
-    TickData = 2
-}
-
 // Table representing BarData
 table BarData {
     id: int;             // int32_t id
@@ -619,7 +612,6 @@ union Payload {
 
 // Root table that encapsulates any message
 table Message {
-    type: MessageType;       // Type identifier
     payload: Payload;        // Payload containing the actual data
 }
 
@@ -641,11 +633,11 @@ int main() {
     flatbuffers::FlatBufferBuilder builder;
 
     auto bar1 = Messages::CreateBarDataDirect(builder, 1, "APPLE", 12.3, 1000, 12300.0);
-    auto msg1 = Messages::CreateMessage(builder, Messages::MessageType::BarData, Messages::Payload::BarData, bar1.Union());
+    auto msg1 = Messages::CreateMessage(builder, Messages::Payload::BarData, bar1.Union());
     fmt::println("size={}, addr={}", builder.GetSize(), fmt::ptr(builder.GetCurrentBufferPointer()));
 
     auto bar2 = Messages::CreateBarDataDirect(builder, 2, "APPLE", 12.3, 1000, 12300.0);
-    auto msg2 = Messages::CreateMessage(builder, Messages::MessageType::BarData, Messages::Payload::BarData, bar2.Union());
+    auto msg2 = Messages::CreateMessage(builder, Messages::Payload::BarData, bar2.Union());
     fmt::println("size={}, addr={}", builder.GetSize(), fmt::ptr(builder.GetCurrentBufferPointer()));
 
     //  builder.Finish() can be invoked only once
@@ -662,33 +654,45 @@ practical example
 
 ```cpp
 // main.cpp
+#include <flatbuffers/flatbuffers.h>
+#include <fmt/core.h>
+#include "datatypes_generated.h"
+
 void serialize_bar_data(flatbuffers::FlatBufferBuilder& builder) {
     auto bar = Messages::CreateBarDataDirect(builder, 1, "apple", 12.3, 1000, 2300.0);
-    auto msg1 = Messages::CreateMessage(builder, Messages::MessageType::BarData, Messages::Payload::BarData, bar.Union());
-    builder.Finish(msg1);
+    auto msg = Messages::CreateMessage(builder, Messages::Payload::BarData, bar.Union());
+    builder.Finish(msg);
 }
 
 void serialize_tick_data(flatbuffers::FlatBufferBuilder& builder) {
     std::vector<int> vols{1, 2, 3, 45};
     auto tick = Messages::CreateTickDataDirect(builder, 2, "msft", 12.3, 12.4, &vols);
-    auto msg2 = Messages::CreateMessage(builder, Messages::MessageType::TickData, Messages::Payload::TickData, tick.Union());
-    builder.Finish(msg2);
+    auto msg = Messages::CreateMessage(builder, Messages::Payload::TickData, tick.Union());
+    builder.Finish(msg);
 }
 
 void deserialize_messages(const uint8_t* buffer, size_t size) {
     auto msg_ptr = Messages::GetMessage(buffer);
 
-    if (msg_ptr->type() == Messages::MessageType::BarData) {
-        auto bar = msg_ptr->payload_as_BarData();
-        fmt::println("Deserialized BarData, id={}, symbol={}, price={}, volume={}, amount={}", bar->id(), bar->symbol()->str(), bar->price(), bar->volume(), bar->amount());
-    } else if (msg_ptr->type() == Messages::MessageType::TickData) {
-        auto tick = msg_ptr->payload_as_TickData();
-        fmt::print("Deserialized TickData, id={}, symbol={}, open={}, high={}, volumes=[", tick->id(), tick->symbol()->str(), tick->open(), tick->high());
-
-        for (auto volume : *tick->volumes()) {
-            fmt::print("{} ", volume);
+    switch (msg_ptr->payload_type()) {
+        case Messages::Payload::BarData: {
+            auto bar = msg_ptr->payload_as_BarData();
+            fmt::println("BarData: id={}, symbol={}, price={}, volume={}, amount={}", bar->id(), bar->symbol()->str(), bar->price(), bar->volume(), bar->amount());
+            break;
         }
-        fmt::println("]");
+        case Messages::Payload::TickData: {
+            auto tick = msg_ptr->payload_as_TickData();
+            fmt::print("TickData: id={}, symbol={}, open={}, high={}, volumes=[", tick->id(), tick->symbol()->str(), tick->open(), tick->high());
+            for (auto volume : *tick->volumes()) {
+                fmt::print("{} ", volume);
+            }
+            fmt::println("]");
+            break;
+        }
+        default: {
+            fmt::println("Unknown payload type");
+            return;
+        }
     }
 }
 
@@ -696,12 +700,12 @@ int main() {
     // Serialize BarData
     flatbuffers::FlatBufferBuilder bar_builder;
     serialize_bar_data(bar_builder);
-    std::cout << "Size after BarData: " << bar_builder.GetSize() << '\n';
+    fmt::println("Size after BarData: {}", bar_builder.GetSize());
 
     // Serialize TickData
     flatbuffers::FlatBufferBuilder tick_builder;
     serialize_tick_data(tick_builder);
-    std::cout << "Size after TickData: " << tick_builder.GetSize() << '\n';
+    fmt::println("Size after TickData: {}", tick_builder.GetSize());
 
     // Deserialize BarData
     deserialize_messages(bar_builder.GetBufferPointer(), bar_builder.GetSize());
@@ -720,7 +724,6 @@ namespace Messages;
 
 // Root table that encapsulates any message
 table Message {
-    type: MessageType;       // Type identifier
     payload: Payload;        // Payload containing the actual data
 }
 
@@ -743,12 +746,12 @@ int main() {
 
     // Create BarData message
     auto bar = Messages::CreateBarDataDirect(builder, 1, "apple", 12.3f, 1000, 2300.0);
-    auto msg1 = Messages::CreateMessage(builder, Messages::MessageType::BarData, Messages::Payload::BarData, bar.Union());
+    auto msg1 = Messages::CreateMessage(builder, Messages::Payload::BarData, bar.Union());
 
     // Create TickData message
     std::vector<int> vols{1, 2, 3, 45};
     auto tick = Messages::CreateTickDataDirect(builder, 2, "msft", 12.3, 12.4, &vols);
-    auto msg2 = Messages::CreateMessage(builder, Messages::MessageType::TickData, Messages::Payload::TickData, tick.Union());
+    auto msg2 = Messages::CreateMessage(builder, Messages::Payload::TickData, tick.Union());
 
     // Create a vector of messages
     std::vector<flatbuffers::Offset<Messages::Message>> message_vector;
@@ -761,10 +764,10 @@ int main() {
     // deserialize
     auto msg_list_ptr = Messages::GetMessageList(builder.GetBufferPointer());
     for (auto msg_ptr : *msg_list_ptr->messages()) {
-        if (msg_ptr->type() == Messages::MessageType::BarData) {
+        if (msg_ptr->payload_type() == Messages::Payload::BarData) {
             auto bar = msg_ptr->payload_as_BarData();
             fmt::println("bar id={}", bar->id());
-        } else if (msg_ptr->type() == Messages::MessageType::TickData) {
+        } else if (msg_ptr->payload_type() == Messages::Payload::TickData) {
             auto tick = msg_ptr->payload_as_TickData();
             fmt::println("tick id={}", tick->id());
         }
