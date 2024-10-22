@@ -341,14 +341,173 @@ cli.setUnpack(&setting);
 method2: solve sticky packet by length field
 
 ```cpp
-unpack_setting_t setting{};
-setting.mode = UNPACK_BY_LENGTH_FIELD;
-setting.package_max_length = DEFAULT_PACKAGE_MAX_LENGTH;
-setting.body_offset = 8;
-setting.length_field_offset = 0;
-setting.length_field_bytes = 8;
-setting.length_field_coding = ENCODE_BY_LITTEL_ENDIAN;
-srv.setUnpack(&setting);
+// tcp_srv.cpp
+#include <fmt/core.h>
+#include <hv/Channel.h>
+#include <hv/TcpServer.h>
+#include <hv/hloop.h>
+#include <hv/htime.h>
+
+struct Request {
+    int id;
+    double raw_value;
+};
+
+struct Response {
+    int id;
+    double processed_value;
+};
+
+// Function to prepare the message with little-endian header
+template <typename T>
+auto prepare(T const& pod) noexcept {
+    static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+    constexpr uint32_t body_length = sizeof(T);
+    // Ensure the body size fits in 4 bytes
+    static_assert(body_length <= std::numeric_limits<uint32_t>::max(), "Type T is too large");
+    std::array<char, 4 + body_length> result{};
+    // Serialize the length in little-endian order
+    std::memcpy(result.data(), &body_length, 4);
+    // Copy the POD data after the header
+    std::memcpy(result.data() + 4, &pod, body_length);
+    return result;  // RVO likely applies here
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 3) {
+        fmt::println("usage: {} HOST PORT", argv[0]);
+        return 1;
+    }
+    auto host = argv[1];
+    auto port = atoi(argv[2]);
+
+    hv::TcpServer srv;
+    if (auto listenfd = srv.createsocket(port, host); listenfd < 0) {
+        return -20;
+    }
+    fmt::println("tcp listening {}:{}, listenfd={}", srv.host, srv.port, srv.listenfd);
+
+    srv.onConnection = [](const hv::SocketChannelPtr& channel) {
+        channel->setKeepaliveTimeout(3000);  // 3s
+        auto peeraddr = channel->peeraddr();
+        if (channel->isConnected()) {
+            fmt::println("{} connected! connfd={}", peeraddr, channel->fd());
+        } else {
+            fmt::println("{} disconnected! connfd={}", peeraddr, channel->fd());
+        }
+    };
+    srv.onMessage = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
+        auto req = reinterpret_cast<Request*>((char*)buf->data() + 4);
+        fmt::println("onMessage: req id={}, value={}", req->id, req->raw_value);
+        Response rsp{req->id, req->raw_value * 10};
+        auto packet = prepare(rsp);
+        channel->write(packet.data(), packet.size());
+    };
+    srv.onWriteComplete = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
+        fmt::println("onWriteComplete: ok");
+    };
+    srv.setMaxConnectionNum(10);
+
+    // solve sticky packet in srv.onMessage
+    unpack_setting_t setting{};
+    setting.mode = UNPACK_BY_LENGTH_FIELD;
+    setting.package_max_length = DEFAULT_PACKAGE_MAX_LENGTH;
+    setting.body_offset = 4;
+    setting.length_field_offset = 0;
+    setting.length_field_bytes = 4;
+    setting.length_field_coding = ENCODE_BY_LITTEL_ENDIAN;
+    srv.setUnpack(&setting);
+
+    srv.start();
+
+    while (getchar() != '\n');
+    srv.stop();
+}
 ```
 
-method3: solve sticky  packet of text
+```cpp
+// tcp_cli.cpp
+#include <fmt/core.h>
+#include <hv/TcpClient.h>
+#include <hv/htime.h>
+
+#include <cstdint>
+#include <cstring>
+#include <string>
+
+struct Request {
+    int id;
+    double raw_value;
+};
+
+struct Response {
+    int id;
+    double processed_value;
+};
+
+// Function to prepare the message with little-endian header
+template <typename T>
+auto prepare(T const& pod) noexcept {
+    static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+    constexpr uint32_t body_length = sizeof(T);
+    // Ensure the body size fits in 4 bytes
+    static_assert(body_length <= std::numeric_limits<uint32_t>::max(), "Type T is too large");
+    std::array<char, 4 + body_length> result{};
+    // Serialize the length in little-endian order
+    std::memcpy(result.data(), &body_length, 4);
+    // Copy the POD data after the header
+    std::memcpy(result.data() + 4, &pod, body_length);
+    return result;  // RVO likely applies here
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 3) {
+        fmt::println("usage: {} HOST PORT", argv[0]);
+        return 1;
+    }
+    auto host = argv[1];
+    auto port = atoi(argv[2]);
+
+    hv::TcpClient cli;
+    if (auto connfd = cli.createsocket(port, host); connfd < 0) {
+        return -20;
+    }
+
+    cli.onConnection = [](const hv::SocketChannelPtr& channel) {
+        std::string peeraddr = channel->peeraddr();
+        if (channel->isConnected()) {
+            fmt::println("connected to {}! connfd={}", peeraddr, channel->fd());
+        } else {
+            fmt::println("disconnected to {}! connfd={}", peeraddr, channel->fd());
+        }
+    };
+    cli.onMessage = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
+        auto rsp = reinterpret_cast<Response*>((char*)buf->data() + 4);
+        fmt::println("onMessage: rsp id={},value={}", rsp->id, rsp->processed_value);
+    };
+    cli.onWriteComplete = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
+        fmt::println("onWriteComplete: done");
+    };
+
+    // solve sticky packet in cli.onMessage
+    unpack_setting_t setting{};
+    setting.mode = UNPACK_BY_LENGTH_FIELD;
+    setting.package_max_length = DEFAULT_PACKAGE_MAX_LENGTH;
+    setting.body_offset = 4;
+    setting.length_field_offset = 0;
+    setting.length_field_bytes = 4;
+    setting.length_field_coding = ENCODE_BY_LITTEL_ENDIAN;
+    cli.setUnpack(&setting);
+
+    cli.start();
+
+    for (auto i = 0; i < 10; ++i) {
+        Request req{i * 100, i * 10.1};
+        auto packet = prepare(req);
+        cli.send(packet.data(), packet.size());
+    }
+
+    while (getchar() != '\n');
+    cli.stop();
+}
+```
