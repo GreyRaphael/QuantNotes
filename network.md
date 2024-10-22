@@ -5,6 +5,7 @@
     - [enable features in libhv](#enable-features-in-libhv)
     - [websocket example](#websocket-example)
     - [tcp example](#tcp-example)
+      - [solve sticky packet](#solve-sticky-packet)
 
 `io_uring` can offer lower latency than `epoll` in many scenarios, particularly where reducing syscall overhead is crucial. 
 
@@ -268,3 +269,54 @@ int main(int argc, char* argv[]) {
 some problems:
 - if `hs_msleep()` sleep time too small, `sticky packet` will happen
 - there is no `sticky packet` problem in udp or websocket
+
+#### solve sticky packet
+
+```cpp
+typedef enum {
+    UNPACK_MODE_NONE        = 0,
+    UNPACK_BY_FIXED_LENGTH  = 1,    // Not recommended
+    UNPACK_BY_DELIMITER     = 2,    // Suitable for text protocol
+    UNPACK_BY_LENGTH_FIELD  = 3,    // Suitable for binary protocol
+} unpack_mode_e;
+```
+
+```cpp
+struct Student {
+    long age;
+    double score;
+};
+
+// with padding, Message size is 24 bytes
+struct Message {
+    uint32_t head;
+    Student body; // offset is 8
+};
+```
+
+method1: solve sticky packet by fix-length
+
+```cpp
+unpack_setting_t setting{};
+setting.mode = UNPACK_BY_FIXED_LENGTH;
+setting.fixed_length = 24;
+// server part
+srv.setUnpack(&setting);
+// client part
+cli.setUnpack(&setting);
+```
+
+method2: solve sticky packet by length field
+
+```cpp
+unpack_setting_t setting{};
+setting.mode = UNPACK_BY_LENGTH_FIELD;
+setting.package_max_length = DEFAULT_PACKAGE_MAX_LENGTH;
+setting.body_offset = 8;
+setting.length_field_offset = 0;
+setting.length_field_bytes = 8;
+setting.length_field_coding = ENCODE_BY_LITTEL_ENDIAN;
+srv.setUnpack(&setting);
+```
+
+method3: solve sticky  packet of text
