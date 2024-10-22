@@ -143,6 +143,8 @@ project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
+# add_definitions(-DENABLE_UDS) # global definition
+
 add_executable(tcp_srv tcp_srv.cpp)
 add_executable(tcp_cli tcp_cli.cpp)
 # enable unix domain socket
