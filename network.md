@@ -587,3 +587,205 @@ def unix_domain_client(socket_path="/tmp/unix_socket"):
 if __name__ == "__main__":
     unix_domain_client()
 ```
+
+Combining TCP and UNIX Domain Sockets
+1. TCP Sockets
+    - Protocol: TCP (Transmission Control Protocol) operates over IP networks.
+    - Addressing: Uses IP addresses and port numbers (e.g., localhost:8080).
+    - Use Case: Suitable for network communication between different machines or processes over a network.
+    - Socket Family: `AF_INET` for IPv4 or `AF_INET6` for IPv6.
+2. UNIX Domain Sockets
+    - Protocol: Operate within the same host using the file system.
+    - Addressing: Uses file system paths (e.g., /tmp/socket).
+    - Use Case: Ideal for inter-process communication (IPC) on the same machine with lower latency and overhead compared to TCP.
+    - Socket Family: `AF_UNIX`.
+
+These two types of sockets are not interchangeable because:
+- Different Socket Families: AF_INET vs. AF_UNIX are distinct and incompatible.
+- Addressing Mechanisms: IP addresses/ports vs. file system paths.
+- Protocol Differences: TCP vs. UNIX domain protocols.
+
+```py
+# server.py
+import socket
+import threading
+import os
+
+def handle_client(conn, address):
+    with conn:
+        print(f"Connected by {address}")
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+            print(f"Received from {address}: {data.decode()}")
+            conn.sendall(data)
+
+def start_tcp_server(host='localhost', port=12345):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_sock:
+        tcp_sock.bind((host, port))
+        tcp_sock.listen()
+        print(f"TCP server listening on {host}:{port}")
+        while True:
+            conn, addr = tcp_sock.accept()
+            threading.Thread(target=handle_client, args=(conn, addr)).start()
+
+def start_unix_server(socket_path='/tmp/unix_socket'):
+    # Ensure the socket does not already exist
+    try:
+        os.unlink(socket_path)
+    except FileNotFoundError:
+        pass
+
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as unix_sock:
+        unix_sock.bind(socket_path)
+        unix_sock.listen()
+        print(f"UNIX domain socket server listening at {socket_path}")
+        while True:
+            conn, _ = unix_sock.accept()
+            threading.Thread(target=handle_client, args=(conn, socket_path)).start()
+
+def main():
+    tcp_thread = threading.Thread(target=start_tcp_server, daemon=True)
+    unix_thread = threading.Thread(target=start_unix_server, daemon=True)
+    tcp_thread.start()
+    unix_thread.start()
+
+    # Keep the main thread alive
+    tcp_thread.join()
+    unix_thread.join()
+
+if __name__ == "__main__":
+    main()
+```
+
+```py
+# client.py
+import socket
+import struct
+import argparse
+import sys
+import os
+
+def send_message(sock, message):
+    """
+    Sends a length-prefixed message over the given socket.
+    """
+    msg = struct.pack('!I', len(message)) + message
+    sock.sendall(msg)
+
+def recv_fixed_length(sock, length):
+    """
+    Receives an exact number of bytes from the socket.
+    """
+    data = b''
+    while len(data) < length:
+        more = sock.recv(length - len(data))
+        if not more:
+            raise EOFError('Socket closed prematurely')
+        data += more
+    return data
+
+def recv_message(sock):
+    """
+    Receives a length-prefixed message from the socket.
+    """
+    raw_len = recv_fixed_length(sock, 4)
+    if not raw_len:
+        return None
+    msg_len = struct.unpack('!I', raw_len)[0]
+    return recv_fixed_length(sock, msg_len)
+
+def tcp_client(host, port, messages):
+    """
+    TCP client that connects to the specified host and port,
+    sends messages, and receives echoes.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.connect((host, port))
+            print(f"Connected to TCP server at {host}:{port}")
+        except Exception as e:
+            print(f"Failed to connect to TCP server at {host}:{port}: {e}")
+            sys.exit(1)
+
+        for msg in messages:
+            print(f"Sending: {msg.decode()}")
+            send_message(sock, msg)
+            try:
+                response = recv_message(sock)
+                if response:
+                    print(f"Received echo: {response.decode()}")
+                else:
+                    print("No response received. Server may have closed the connection.")
+                    break
+            except EOFError:
+                print("Connection closed by server.")
+                break
+
+def unix_domain_client(socket_path, messages):
+    """
+    UNIX domain socket client that connects to the specified socket path,
+    sends messages, and receives echoes.
+    """
+    if not os.path.exists(socket_path):
+        print(f"UNIX socket path '{socket_path}' does not exist.")
+        sys.exit(1)
+
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+        try:
+            sock.connect(socket_path)
+            print(f"Connected to UNIX socket at {socket_path}")
+        except Exception as e:
+            print(f"Failed to connect to UNIX socket at {socket_path}: {e}")
+            sys.exit(1)
+
+        for msg in messages:
+            print(f"Sending: {msg.decode()}")
+            sock.sendall(msg)  # For UNIX sockets, message boundaries are preserved
+            try:
+                data = sock.recv(4096)
+                if data:
+                    print(f"Received echo: {data.decode()}")
+                else:
+                    print("No response received. Server may have closed the connection.")
+                    break
+            except Exception as e:
+                print(f"Error receiving data: {e}")
+                break
+
+def parse_arguments():
+    """
+    Parses command-line arguments to determine connection type and parameters.
+    """
+    parser = argparse.ArgumentParser(description="Client supporting both TCP and UNIX domain sockets.")
+    subparsers = parser.add_subparsers(dest='mode', required=True, help='Connection mode')
+
+    # TCP mode
+    tcp_parser = subparsers.add_parser('tcp', help='Use TCP to connect to the server')
+    tcp_parser.add_argument('--host', type=str, default='localhost', help='TCP server host (default: localhost)')
+    tcp_parser.add_argument('--port', type=int, default=12345, help='TCP server port (default: 12345)')
+
+    # UNIX domain socket mode
+    unix_parser = subparsers.add_parser('unix', help='Use UNIX domain socket to connect to the server')
+    unix_parser.add_argument('--socket', type=str, default='/tmp/unix_socket', help='UNIX socket path (default: /tmp/unix_socket)')
+
+    return parser.parse_args()
+
+def main():
+    args = parse_arguments()
+
+    # Define messages to send
+    messages = [b'Hello', b'World', b'This is a test message']
+
+    if args.mode == 'tcp':
+        tcp_client(args.host, args.port, messages)
+    elif args.mode == 'unix':
+        unix_domain_client(args.socket, messages)
+    else:
+        print("Invalid mode selected. Use 'tcp' or 'unix'.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+```
