@@ -6,6 +6,7 @@
     - [websocket example](#websocket-example)
     - [tcp example](#tcp-example)
       - [solve sticky packet](#solve-sticky-packet)
+    - [udp example](#udp-example)
   - [unix domain socket in python](#unix-domain-socket-in-python)
 
 `io_uring` can offer lower latency than `epoll` in many scenarios, particularly where reducing syscall overhead is crucial. 
@@ -524,6 +525,130 @@ auto prepare_dynamic(const void* ptr, uint32_t body_length) noexcept {
     // Copy the POD data after the header
     std::memcpy(result.data() + 4, ptr, body_length);
     return result;  // RVO likely applies here
+}
+```
+
+### udp example
+
+UDP features
+- there is no sticky packet problem
+
+```cmake
+cmake_minimum_required(VERSION 3.20)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+
+add_executable(udp_srv udp_srv.cpp)
+add_executable(udp_cli udp_cli.cpp)
+target_compile_definitions(udp_srv PRIVATE ENABLE_UDS)
+target_compile_definitions(udp_cli PRIVATE ENABLE_UDS)
+target_compile_definitions(udp_srv PRIVATE WITH_KCP)
+target_compile_definitions(udp_cli PRIVATE WITH_KCP)
+
+find_package(libhv CONFIG REQUIRED)
+target_link_libraries(udp_srv PRIVATE hv_static)
+target_link_libraries(udp_cli PRIVATE hv_static)
+
+find_package(fmt CONFIG REQUIRED)
+target_link_libraries(udp_srv PRIVATE fmt::fmt)
+target_link_libraries(udp_cli PRIVATE fmt::fmt)
+```
+
+```bash
+# usage1: without unix domain socket
+udp_srv localhost 8888
+udp_cli localhost 8888
+
+# usage2: without unix domain socket
+udp_srv /tmp/my.sock -1
+udp_cli /tmp/my.sock -1
+```
+
+```cpp
+// udp_srv.cpp
+#include <fmt/core.h>
+#include <hv/UdpServer.h>
+
+struct Request {
+    int id;
+    double raw_value;
+};
+
+struct Response {
+    int id;
+    double processed_value;
+};
+
+int main(int argc, char* argv[]) {
+    if (argc < 3) {
+        fmt::println("usage: {} HOST PORT", argv[0]);
+        return 1;
+    }
+    auto host = argv[1];
+    auto port = atoi(argv[2]);
+
+    hv::UdpServer srv;
+    if (auto bindfd = srv.createsocket(port, host); bindfd < 0) {
+        return -20;
+    }
+    srv.onMessage = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
+        auto req = reinterpret_cast<Request*>(buf->data());
+        fmt::println("onMessage: req id={}, value={}", req->id, req->raw_value);
+        Response rsp{req->id, req->raw_value * 10};
+        channel->write(&rsp, sizeof(Response));
+    };
+    srv.onWriteComplete = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
+        fmt::println("onWriteComplete: ok");
+    };
+    srv.start();
+
+    while (getchar() != '\n');
+}
+```
+
+```cpp
+// udp_cli.cpp
+#include <fmt/core.h>
+#include <hv/UdpClient.h>
+
+struct Request {
+    int id;
+    double raw_value;
+};
+
+struct Response {
+    int id;
+    double processed_value;
+};
+
+int main(int argc, char* argv[]) {
+    if (argc < 3) {
+        fmt::println("usage: {} HOST PORT", argv[0]);
+        return 1;
+    }
+    auto host = argv[1];
+    auto port = atoi(argv[2]);
+
+    hv::UdpClient cli;
+    if (auto sockfd = cli.createsocket(port, host); sockfd < 0) {
+        return -20;
+    }
+    cli.onMessage = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
+        auto rsp = reinterpret_cast<Response*>(buf->data());
+        fmt::println("onMessage: rsp id={}, value={}", rsp->id, rsp->processed_value);
+    };
+    cli.onWriteComplete = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
+        fmt::println("onWriteComplete: {} bytes", buf->size());
+    };
+    cli.start();
+
+    for (auto i = 0; i < 10; ++i) {
+        Request req{i * 100, i * 10.1};
+        cli.sendto(&req, sizeof(Request));
+    }
+
+    while (getchar() != '\n');
 }
 ```
 
