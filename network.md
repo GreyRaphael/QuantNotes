@@ -178,6 +178,14 @@ tcp_srv /tmp/my.sock -1
 tcp_cli /tmp/my.sock -1
 ```
 
+TcpServer更多[实用接口](https://hewei.blog.csdn.net/article/details/113737580)
+- `setThreadNum`：设置IO线程数
+- `setMaxConnectionNum`：设置最大连接数
+- `setLoadBalance`: 设置负载均衡策略（轮询、随机、最少连接数）
+- `setUnpack`：设置拆包规则（固定包长、分界符、头部长度字段）
+- `withTLS`：SSL/TLS加密通信
+- `broadcast`: 广播
+
 ```cpp
 // tcp_srv.cpp
 #include <fmt/core.h>
@@ -227,6 +235,12 @@ int main(int argc, char* argv[]) {
     while (getchar() != '\n');
 }
 ```
+
+TcpClient更多实用接口
+- `setConnectTimeout`：设置连接超时
+- `setReconnect`：设置重连
+- `setUnpack`: 设置拆包
+- `withTLS`：SSL/TLS加密通信
 
 ```cpp
 // tcp_cli.cpp
