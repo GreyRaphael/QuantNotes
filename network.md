@@ -6,6 +6,7 @@
     - [websocket example](#websocket-example)
     - [tcp example](#tcp-example)
       - [solve sticky packet](#solve-sticky-packet)
+  - [unix domain socket in python](#unix-domain-socket-in-python)
 
 `io_uring` can offer lower latency than `epoll` in many scenarios, particularly where reducing syscall overhead is crucial. 
 
@@ -524,4 +525,65 @@ auto prepare_dynamic(const void* ptr, uint32_t body_length) noexcept {
     std::memcpy(result.data() + 4, ptr, body_length);
     return result;  // RVO likely applies here
 }
+```
+
+## unix domain socket in python
+
+```py
+# server.py
+import socket
+import os
+
+def unix_domain_server(socket_path='/tmp/unix_socket'):
+    # Ensure the socket does not already exist
+    try:
+        os.unlink(socket_path)
+    except FileNotFoundError:
+        pass
+
+    # Create a UNIX domain socket
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server_sock:
+        server_sock.bind(socket_path)
+        server_sock.listen()
+        print(f"UNIX domain socket server listening at {socket_path}")
+
+        while True:
+            conn, _ = server_sock.accept()
+            with conn:
+                print("Client connected")
+                while True:
+                    data = conn.recv(1024)
+                    if not data:
+                        break
+                    print(f"Received: {data.decode()}")
+                    conn.sendall(data)  # Echo back
+
+if __name__ == "__main__":
+    unix_domain_server()
+```
+
+```py
+# client.py
+import socket
+
+
+def unix_domain_client(socket_path="/tmp/unix_socket"):
+    messages = [b"Hello", b"World", b"This is a UNIX socket test"]
+
+    # Create a UNIX domain socket
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client_sock:
+        client_sock.connect(socket_path)
+        print(f"Connected to UNIX socket at {socket_path}")
+
+        for message in messages:
+            print(f"Sending: {message.decode()}")
+            client_sock.sendall(message)
+
+            # Receive echo
+            data = client_sock.recv(1024)
+            print(f"Received echo: {data.decode()}")
+
+
+if __name__ == "__main__":
+    unix_domain_client()
 ```
