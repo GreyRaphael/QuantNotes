@@ -109,6 +109,8 @@ int main(int argc, char** argv) {
     }
     auto host = argv[1];
     auto port = atoi(argv[2]);
+    // ws://ip:port/path or ip:port/path
+    auto addr = fmt::format("{}:{}", host, port);
 
     hv::WebSocketClient ws;
     ws.setPingInterval(1000);  // ping 1s < 3s
@@ -122,9 +124,15 @@ int main(int argc, char** argv) {
         fmt::println("onmessage: {}", msg);
     };
 
-    auto addr = fmt::format("{}:{}", host, port);
-    // ws://ip:port/path or ip:port/path
+    // reconnect: 1,2,4,8,10,10,10...
+    reconn_setting_t reconn;
+    reconn.min_delay = 1000;
+    reconn.max_delay = 10000;
+    reconn.delay_policy = DEFAULT_RECONNECT_DELAY_POLICY;  // exponential
+    ws.setReconnect(&reconn);
+
     ws.open(addr.c_str());
+
     for (size_t i = 0; i < 10; ++i) {
         auto msg = std::to_string(i);
         ws.send(msg);
@@ -255,6 +263,14 @@ int main(int argc, char* argv[]) {
     cli.onWriteComplete = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
         fmt::println("onWriteComplete: {}", (char*)buf->data());
     };
+
+    // reconnect: 1,2,4,8,10,10,10...
+    reconn_setting_t reconn;
+    reconn.min_delay = 1000;
+    reconn.max_delay = 10000;
+    reconn.delay_policy = DEFAULT_RECONNECT_DELAY_POLICY;  // exponential
+    cli.setReconnect(&reconn);
+
     cli.start();
 
     for (auto i = 0; i < 10; ++i) {
