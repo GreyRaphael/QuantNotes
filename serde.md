@@ -228,6 +228,9 @@ func main() {
 
 ## serde with `flatbuffers`
 
+flatbuffers memory layout: [FlatBuffers-Explained](https://github.com/mzaks/FlatBuffersSwift/wiki/FlatBuffers-Explained)
+> [binary format of flatbuffers](https://github.com/dvidelabs/flatcc/blob/master/doc/binary-format.md)
+
 ### serde for python
 
 how to serde with flatbuffers for python
