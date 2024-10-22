@@ -511,3 +511,17 @@ int main(int argc, char* argv[]) {
     cli.stop();
 }
 ```
+
+prepare dynamic length data
+
+```cpp
+// Function to prepare the message with little-endian header
+auto prepare_dynamic(const void* ptr, uint32_t body_length) noexcept {
+    std::vector<char> result(4 + body_length);
+    // Serialize the length in little-endian order
+    std::memcpy(result.data(), &body_length, 4);
+    // Copy the POD data after the header
+    std::memcpy(result.data() + 4, ptr, body_length);
+    return result;  // RVO likely applies here
+}
+```
