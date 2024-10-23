@@ -8,6 +8,7 @@
     - [tcp example](#tcp-example)
       - [solve sticky packet](#solve-sticky-packet)
     - [udp example](#udp-example)
+    - [kcp server and client](#kcp-server-and-client)
   - [unix domain socket in python SOCK\_STREAM](#unix-domain-socket-in-python-sock_stream)
   - [unix domain socket in python SOCK\_DGRAM](#unix-domain-socket-in-python-sock_dgram)
 
@@ -586,7 +587,7 @@ target_link_libraries(udp_cli PRIVATE fmt::fmt)
 udp_srv localhost 8888
 udp_cli localhost 8888
 
-# usage2: without unix domain socket
+# usage2: with unix domain socket
 udp_srv /tmp/my.sock -1
 udp_cli /tmp/my.sock -1
 ```
@@ -696,13 +697,23 @@ int main(int argc, char* argv[]) {
 }
 ```
 
-kcp server and client
+### kcp server and client
+
+> when using kcp, please use tmp file as socket
+
+```bash
+# usage
+./kcp_srv /tmp/sock -1
+# server bind /tmp/filexwHDTV:-1
+./kcp_cli /tmp/filexwHDTV -1
+```
 
 ```cpp
 // kcp_srv.cpp
 #include <fmt/core.h>
 #include <hv/UdpServer.h>
 #include <hv/hloop.h>
+#include <filesystem>
 
 struct Request {
     int id;
@@ -719,28 +730,36 @@ int main(int argc, char* argv[]) {
         fmt::println("usage: {} HOST PORT", argv[0]);
         return 1;
     }
-    auto host = argv[1];
     auto port = atoi(argv[2]);
+    // host < 0, use UDS
+    auto host = port < 0 ? std::tmpnam(nullptr) : argv[1];
 
     hv::UdpServer srv;
     if (auto bindfd = srv.createsocket(port, host); bindfd < 0) {
         return -20;
     }
+    fmt::println("server bind {}:{}", srv.host, srv.port);
+
     srv.onMessage = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
         auto req = reinterpret_cast<Request*>(buf->data());
-        fmt::println("onMessage: req id={}, value={}", req->id, req->raw_value);
+        fmt::println("onMessage: req id={}, value={}, peer={},local={}", req->id, req->raw_value, channel->peeraddr(), channel->localaddr());
         Response rsp{req->id, req->raw_value * 10};
         channel->write(&rsp, sizeof(Response));
     };
     srv.onWriteComplete = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
         fmt::println("onWriteComplete: ok");
     };
+    // kcp
     kcp_setting_t setting;
     srv.setKcp(&setting);
+    fmt::println("kcp interval={}, mtu={}", setting.interval, setting.mtu);
 
     srv.start();
-
     while (getchar() != '\n');
+
+    if (port < 0) {
+        std::filesystem::remove(host);
+    }
 }
 ```
 
@@ -748,6 +767,11 @@ int main(int argc, char* argv[]) {
 // kcp_cli.cpp
 #include <fmt/core.h>
 #include <hv/UdpClient.h>
+#include <hv/hplatform.h>
+#include <sys/socket.h>
+
+#include <cstring>
+#include <filesystem>
 
 struct Request {
     int id;
@@ -764,13 +788,20 @@ int main(int argc, char* argv[]) {
         fmt::println("usage: {} HOST PORT", argv[0]);
         return 1;
     }
-    auto host = argv[1];
-    auto port = atoi(argv[2]);
+    auto remote_host = argv[1];
+    auto remote_port = atoi(argv[2]);
 
     hv::UdpClient cli;
-    if (auto sockfd = cli.createsocket(port, host); sockfd < 0) {
+    if (auto sockfd = cli.createsocket(remote_port, remote_host); sockfd < 0) {
         return -20;
     }
+
+    // deal with UDS path
+    auto local_host = std::tmpnam(nullptr);
+    if (remote_port < 0) {
+        cli.bind(remote_port, local_host);
+    }
+
     cli.onMessage = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
         auto rsp = reinterpret_cast<Response*>(buf->data());
         fmt::println("onMessage: rsp id={}, value={}", rsp->id, rsp->processed_value);
@@ -778,16 +809,21 @@ int main(int argc, char* argv[]) {
     cli.onWriteComplete = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
         fmt::println("onWriteComplete: {} bytes", buf->size());
     };
+    // kcp
     kcp_setting_t setting;
     cli.setKcp(&setting);
+    fmt::println("kcp interval={}, mtu={}", setting.interval, setting.mtu);
+
     cli.start();
 
     for (auto i = 0; i < 10; ++i) {
         Request req{i * 100, i * 10.1};
         cli.sendto(&req, sizeof(Request));
+        hv_msleep(200);
     }
 
     while (getchar() != '\n');
+    std::filesystem::remove(local_host);
 }
 ```
 
