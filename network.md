@@ -9,6 +9,7 @@
       - [solve sticky packet](#solve-sticky-packet)
     - [udp example](#udp-example)
     - [kcp server and client](#kcp-server-and-client)
+    - [python kcp client](#python-kcp-client)
   - [unix domain socket in python SOCK\_STREAM](#unix-domain-socket-in-python-sock_stream)
   - [unix domain socket in python SOCK\_DGRAM](#unix-domain-socket-in-python-sock_dgram)
 
@@ -825,6 +826,45 @@ int main(int argc, char* argv[]) {
     while (getchar() != '\n');
     std::filesystem::remove(local_host);
 }
+```
+
+### python kcp client
+
+```py
+# kcp_client.py
+from kcp import KCPClientSync
+import time
+
+client = KCPClientSync(
+    "127.0.0.1",
+    9999,
+    conv_id=287454020,
+    no_delay=False,
+    update_interval=40,
+    resend_count=0,
+    no_congestion_control=False,
+    receive_window_size=0,
+    send_window_size=0,
+)
+
+
+@client.on_data
+def handle_data(data: bytes) -> None:
+    print(data)
+
+
+@client.on_start
+def on_start() -> None:
+    print("Connected to server!")
+
+    i = 0
+    while True:
+        client.send(f"Data{i}".encode())
+        time.sleep(0.2)
+        i += 1
+
+
+client.start()
 ```
 
 ## unix domain socket in python SOCK_STREAM
