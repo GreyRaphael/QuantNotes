@@ -9,6 +9,7 @@
       - [solve sticky packet](#solve-sticky-packet)
     - [udp example](#udp-example)
   - [unix domain socket in python SOCK\_STREAM](#unix-domain-socket-in-python-sock_stream)
+  - [unix domain socket in python SOCK\_DGRAM](#unix-domain-socket-in-python-sock_dgram)
 
 `io_uring` can offer lower latency than `epoll` in many scenarios, particularly where reducing syscall overhead is crucial. 
 
@@ -775,7 +776,7 @@ int main(int argc, char* argv[]) {
 ## unix domain socket in python SOCK_STREAM
 
 ```py
-# server.py
+# stream_server.py
 import socket
 import os
 
@@ -808,7 +809,7 @@ if __name__ == "__main__":
 ```
 
 ```py
-# client.py
+# stream_client.py
 import socket
 
 
@@ -1033,4 +1034,72 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+
+## unix domain socket in python SOCK_DGRAM
+
+```py
+# dgram_server.py
+import socket
+import os
+
+def unix_domain_server(socket_path="/tmp/unix_socket"):
+    # Ensure the socket does not already exist
+    try:
+        os.unlink(socket_path)
+    except FileNotFoundError:
+        pass
+
+    # Create a UNIX datagram socket
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as server_sock:
+        server_sock.bind(socket_path)
+        print(f"UNIX datagram socket server listening at {socket_path}")
+
+        while True:
+            try:
+                # Receive data and the address of the client
+                data, client_addr = server_sock.recvfrom(1024)
+                print(f"Received from {client_addr}: {data.decode()}")
+
+                # Echo the data back to the client
+                server_sock.sendto(data, client_addr)
+                print(f"Echoed back to {client_addr}")
+            except KeyboardInterrupt:
+                print("\nServer shutting down.")
+                break
+            except Exception as e:
+                print(f"An error occurred: {e}")
+
+
+if __name__ == "__main__":
+    unix_domain_server()
+```
+
+```py
+# dgram_client.py
+import socket
+import os
+
+def unix_domain_client(server_socket_path="/tmp/unix_socket", client_socket_path="/tmp/client_socket"):
+    # Ensure the client socket does not already exist
+    try:
+        os.unlink(client_socket_path)
+    except FileNotFoundError:
+        pass
+
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as client_sock:
+        client_sock.bind(client_socket_path)
+        try:
+            message = "Hello, Server!"
+            client_sock.sendto(message.encode(), server_socket_path)
+            print(f"Sent to server: {message}")
+
+            data, _ = client_sock.recvfrom(1024)
+            print(f"Received from server: {data.decode()}")
+        finally:
+            os.unlink(client_socket_path)
+
+
+if __name__ == "__main__":
+    unix_domain_client()
 ```
