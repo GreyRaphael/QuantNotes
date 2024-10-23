@@ -595,6 +595,7 @@ udp_cli /tmp/my.sock -1
 // udp_srv.cpp
 #include <fmt/core.h>
 #include <hv/UdpServer.h>
+#include <filesystem>
 
 struct Request {
     int id;
@@ -614,13 +615,18 @@ int main(int argc, char* argv[]) {
     auto host = argv[1];
     auto port = atoi(argv[2]);
 
+    // deal with UDS path
+    if (port < 0 && std::filesystem::is_socket(host)) {
+        std::filesystem::remove(host);
+    }
+
     hv::UdpServer srv;
     if (auto bindfd = srv.createsocket(port, host); bindfd < 0) {
         return -20;
     }
     srv.onMessage = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
         auto req = reinterpret_cast<Request*>(buf->data());
-        fmt::println("onMessage: req id={}, value={}", req->id, req->raw_value);
+        fmt::println("onMessage: req id={}, value={}, peer={},local={}", req->id, req->raw_value, channel->peeraddr(), channel->localaddr());
         Response rsp{req->id, req->raw_value * 10};
         channel->write(&rsp, sizeof(Response));
     };
@@ -637,6 +643,9 @@ int main(int argc, char* argv[]) {
 // udp_cli.cpp
 #include <fmt/core.h>
 #include <hv/UdpClient.h>
+#include <hv/hplatform.h>
+#include <cstring>
+#include <filesystem>
 
 struct Request {
     int id;
@@ -660,6 +669,14 @@ int main(int argc, char* argv[]) {
     if (auto sockfd = cli.createsocket(port, host); sockfd < 0) {
         return -20;
     }
+
+    // deal with UDS path
+    if (port < 0) {
+        auto local_host = "/tmp/client_socket";
+        std::filesystem::remove(local_host);
+        cli.bind(-1, local_host);
+    }
+
     cli.onMessage = [](const hv::SocketChannelPtr& channel, hv::Buffer* buf) {
         auto rsp = reinterpret_cast<Response*>(buf->data());
         fmt::println("onMessage: rsp id={}, value={}", rsp->id, rsp->processed_value);
@@ -672,6 +689,7 @@ int main(int argc, char* argv[]) {
     for (auto i = 0; i < 10; ++i) {
         Request req{i * 100, i * 10.1};
         cli.sendto(&req, sizeof(Request));
+        // hv_msleep(200);
     }
 
     while (getchar() != '\n');
