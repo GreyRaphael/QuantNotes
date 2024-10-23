@@ -1,15 +1,40 @@
 # Network
 
 - [Network](#network)
+  - [socket](#socket)
   - [libhv](#libhv)
     - [enable features in libhv](#enable-features-in-libhv)
     - [websocket example](#websocket-example)
     - [tcp example](#tcp-example)
       - [solve sticky packet](#solve-sticky-packet)
     - [udp example](#udp-example)
-  - [unix domain socket in python](#unix-domain-socket-in-python)
+  - [unix domain socket in python SOCK\_STREAM](#unix-domain-socket-in-python-sock_stream)
 
 `io_uring` can offer lower latency than `epoll` in many scenarios, particularly where reducing syscall overhead is crucial. 
+
+## socket
+
+IBM [DOCS](https://www.ibm.com/docs/en/aix/7.1?topic=s-socket-subroutine)
+
+`int socket (AddressFamily,  Type,  Protocol)`
+- TCP
+  - ipv4: `int socket (AF_INET, SOCK_STREAM, 0)`
+  - ipv6: `int socket (AF_INET6, SOCK_STREAM, 0)`
+- UDP
+  - ipv4: `int socket (AF_INET, SOCK_DGRAM, 0)`
+  - ipv6: `int socket (AF_INET6, SOCK_DGRAM, 0)`
+- UDS: Unix Domain Socket
+  - `int socket (AF_UNIX, SOCK_STREAM, 0)`
+  - `int socket (AF_UNIX, SOCK_DGRAM, 0)`
+- RDS: Reliable Datagram Sockets
+  - `int socket (AF_BYPASS, SOCK_SEQPACKET,BYPASSPROTO_RDS);`
+- SCTP: Stream Control Transmission Protocol
+  - One-to-One Interface
+    - `int socket (AF_INET, SOCK_STREAM, IPPROTO_SCTP);`
+    - `int socket (AF_INET, SOCK_STREAM, IPPROTO_SCTP);`
+  - One-to-Many Interface
+    - `int socket (AF_INET6, SOCK_SEQPACKET, IPPROTO_SCTP);`
+    - `int socket (AF_INET6, SOCK_SEQPACKET, IPPROTO_SCTP);`
 
 ## libhv
 
@@ -747,7 +772,7 @@ int main(int argc, char* argv[]) {
 }
 ```
 
-## unix domain socket in python
+## unix domain socket in python SOCK_STREAM
 
 ```py
 # server.py
