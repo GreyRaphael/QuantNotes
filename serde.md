@@ -16,6 +16,7 @@
   - [serde by yalantinglibs](#serde-by-yalantinglibs)
     - [struct\_pack absl container](#struct_pack-absl-container)
   - [serde benchmark](#serde-benchmark)
+  - [protobuf](#protobuf)
 
 
 ## parse bytes manually
@@ -1125,3 +1126,153 @@ cd build/output/benchmakr
 | 20 person deserialize  | 741         | 69                 | 1050      | 2           | 3456     |
 | 1 monster deserialize  | 72          |                    | 24        | 2           | 322      |
 | 20 monster deserialize | 1906        | 905                | 1336      | 2           | 7137     |
+
+## protobuf
+
+`vcpkg install protobuf`
+
+```bash
+# files
+.
+├── CMakeLists.txt
+├── main.cpp
+└── messages.proto
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 23)
+
+find_package(protobuf CONFIG REQUIRED)
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS messages.proto) # genenrate *.pb.h and *.pb.cc
+add_executable(proj1 main.cpp ${PROTO_SRCS})
+target_include_directories(proj1 PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}  # For generated .pb.h files
+)
+
+target_link_libraries(proj1 PRIVATE protobuf::libprotobuf)
+```
+
+> notes: there is a [bug](https://github.com/abseil/abseil-cpp/issues/1747) in abseil 20240722, so add the following line
+
+simple serde example by protobuf
+
+```cpp
+// main.cpp
+#include <iostream>
+
+#include "absl/base/config.h"
+#include "messages.pb.h"
+
+// for temporary bug fix
+namespace absl {
+
+ABSL_NAMESPACE_BEGIN
+
+namespace log_internal {
+
+template LogMessage& LogMessage::operator<<(const char& v);
+template LogMessage& LogMessage::operator<<(const signed char& v);
+template LogMessage& LogMessage::operator<<(const unsigned char& v);
+template LogMessage& LogMessage::operator<<(const short& v);           // NOLINT
+template LogMessage& LogMessage::operator<<(const unsigned short& v);  // NOLINT
+template LogMessage& LogMessage::operator<<(const int& v);
+template LogMessage& LogMessage::operator<<(const unsigned int& v);
+template LogMessage& LogMessage::operator<<(const long& v);           // NOLINT
+template LogMessage& LogMessage::operator<<(const unsigned long& v);  // NOLINT
+template LogMessage& LogMessage::operator<<(const long long& v);      // NOLINT
+template LogMessage& LogMessage::operator<<(
+    const unsigned long long& v);  // NOLINT
+template LogMessage& LogMessage::operator<<(void* const& v);
+template LogMessage& LogMessage::operator<<(const void* const& v);
+template LogMessage& LogMessage::operator<<(const float& v);
+template LogMessage& LogMessage::operator<<(const double& v);
+template LogMessage& LogMessage::operator<<(const bool& v);
+
+}  // namespace log_internal
+
+ABSL_NAMESPACE_END
+
+}  // namespace absl
+
+int main() {
+    Messages::Message message;
+    auto* kline = message.mutable_k1min();
+    kline->set_symbol("AAPL");
+    kline->set_timestamp(1633036800);
+    // ... set other fields
+
+    // Serialize to string
+    std::string serialized;
+
+    message.SerializeToString(&serialized);
+
+    // Deserialize
+    Messages::Message parsed_message;
+    if (parsed_message.ParseFromArray(serialized.data(), serialized.size())) {
+        if (parsed_message.has_k1min()) {
+            const auto& k = parsed_message.k1min();
+            std::cout << "Symbol: " << k.symbol() << std::endl;
+            // ... access other fields
+        }
+    }
+}
+```
+
+complicated sered example by protobuf
+
+```cpp
+int main() {
+    // Create a Message instance
+    Messages::Message message;
+
+    // Set the subscribe payload
+    auto topics = message.mutable_subscribe();
+
+    // Set dt_start and dt_end (example timestamps)
+    topics->set_dt_start(1633036800);  // Example start timestamp
+    topics->set_dt_end(1633123200);    // Example end timestamp
+
+    // Add topics to subscribe to
+    auto topic1 = topics->add_topics();
+    topic1->set_type(Messages::K1min);
+    topic1->set_symbol("AAPL");
+
+    auto topic2 = topics->add_topics();
+    topic2->set_type(Messages::K1d);
+    topic2->set_symbol("GOOGL");
+
+    // Serialize the message to a string
+    std::string serialized_message;
+    if (!message.SerializeToString(&serialized_message)) {
+        std::cerr << "Failed to serialize message." << std::endl;
+        return -1;
+    }
+
+    // Output the serialized message size
+    std::cout << "Serialized message size: " << serialized_message.size() << " bytes" << std::endl;
+
+    // Deserialize the message
+    Messages::Message parsed_message;
+    if (!parsed_message.ParseFromString(serialized_message)) {
+        std::cerr << "Failed to parse message." << std::endl;
+        return -1;
+    }
+
+    // Check if the payload is subscribe and access the data
+    if (parsed_message.has_subscribe()) {
+        const Messages::Topics& parsed_topics = parsed_message.subscribe();
+        std::cout << "Parsed subscribe message:" << std::endl;
+        std::cout << "dt_start: " << parsed_topics.dt_start() << std::endl;
+        std::cout << "dt_end: " << parsed_topics.dt_end() << std::endl;
+
+        for (const auto& t : parsed_topics.topics()) {
+            std::cout << "Topic - Type: " << t.type() << ", Symbol: " << t.symbol() << std::endl;
+        }
+    } else {
+        std::cout << "Parsed message does not contain subscribe payload." << std::endl;
+    }
+}
+```
