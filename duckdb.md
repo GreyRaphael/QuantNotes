@@ -19,9 +19,20 @@ import duckdb
 
 df=pl.read_ipc('20231*.ipc')
 
-conn=duckdb.connect("etf_db", read_only=False)
-conn.execute("CREATE TABLE kl1m_2023 AS SELECT * FROM df")
+conn=duckdb.connect("bar1d.db", read_only=False)
+conn.execute("CREATE TABLE etf AS SELECT * FROM df")
 conn.close()
+```
+
+append `pl.Dataframe` to an existed table in duckdb
+
+```py
+import polars as pl
+import duckdb
+
+conn = duckdb.connect("bar1d.db", read_only=False)
+df_new = pl.read_ipc("2024*.ipc")
+conn.execute("INSERT INTO etf SELECT * FROM df_new")
 ```
 
 query **datetime** in duckdb
@@ -29,10 +40,10 @@ query **datetime** in duckdb
 ```py
 import duckdb
 
-conn=duckdb.connect('etf_db', read_only=True)
+conn=duckdb.connect('bar1d.db', read_only=True)
 
 # pl() to polars dataframe
-conn.execute("SELECT * FROM kl1m_2023 WHERE dt>'2023-12-01 00:00:00.000' and code=1").pl()
+conn.execute("SELECT * FROM etf WHERE dt>'2023-12-01 00:00:00.000' AND code=1").pl()
 
 ```
 
@@ -41,7 +52,7 @@ extract with a **datetime range**
 ```py
 query = """
 SELECT *
-FROM kl1m_2023
+FROM etf
 WHERE dt BETWEEN '2023-11-01' AND '2023-11-10'
 """
 conn.execute(query).pl()
@@ -52,7 +63,7 @@ extract with datetime
 ```py
 query = """
 SELECT *
-FROM kl1m_2023
+FROM etf
 WHERE EXTRACT(MONTH FROM dt) = 11 AND EXTRACT(YEAR FROM dt) = 2023
 """
 conn.execute(query).pl()
@@ -66,7 +77,7 @@ cutoff = dt.datetime(2023, 12, 10, 0, 0, 0)
 # Execute a parameterized query
 query = """
 SELECT *
-FROM etf_kl1m_2023
+FROM etf
 WHERE dt > ?
 """
 
