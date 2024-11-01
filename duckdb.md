@@ -21,7 +21,7 @@ df=pl.read_ipc('20231*.ipc')
 
 conn=duckdb.connect("bar1d.db", read_only=False)
 conn.execute("CREATE TABLE etf AS SELECT * FROM df")
-conn.close()
+conn.close() # must close after save
 ```
 
 append `pl.Dataframe` to an existed table in duckdb
@@ -33,6 +33,7 @@ import duckdb
 conn = duckdb.connect("bar1d.db", read_only=False)
 df_new = pl.read_ipc("2024*.ipc")
 conn.execute("INSERT INTO etf SELECT * FROM df_new")
+conn.close() # must close after save
 ```
 
 query **datetime** in duckdb
