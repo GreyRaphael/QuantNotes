@@ -139,3 +139,41 @@ class FixedSizeContainer {
     std::unique_ptr<T[]> data_;
 };
 ```
+
+optimized with c++23 `deducing this`
+> The use of `decltype(auto)` is crucial here. It ensures that the function returns the exact type that `self.data.at(index)` returns, which can be either `T&` or `const T&` depending on whether `self` is `const`.
+
+```cpp
+template <typename T>
+class FixedSizeVector {
+   public:
+    FixedSizeVector(size_t size) : data(size) {}
+
+    // Use deducing 'this' to combine const and non-const versions
+    decltype(auto) operator[](this auto&& self, size_t index) {
+        return self.data.at(index);
+    }
+
+    // Combine begin() and end() using deducing 'this'
+    decltype(auto) begin(this auto&& self) {
+        return self.data.begin();
+    }
+    decltype(auto) end(this auto&& self) {
+        return self.data.end();
+    }
+
+    // Optionally, use deducing 'this' for size()
+    auto size(this auto const& self) {
+        return self.data.size();
+    }
+
+   private:
+    std::vector<T> data;
+
+    // Delete size-changing methods
+    void push_back(const T&) = delete;
+    void emplace_back(T&&) = delete;
+    void resize(size_t) = delete;
+    void clear() = delete;
+};
+```
