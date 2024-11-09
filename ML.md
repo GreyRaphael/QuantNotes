@@ -20,6 +20,20 @@ AutoML [frameworks](https://openml.github.io/automlbenchmark/frameworks.html)
 - mljar-supervised(3k stars): too many parameters
 - h2o-3(6.9k stars): hard to use
 
+```bash
+# AutoML by lightGBM or XGBoost
+pip install "flaml[automl]"
+
+# very easy
+# following the guide: https://microsoft.github.io/FLAML/docs/Examples/AutoML-Regression
+```
+
+```bash
+# AutoML by perpetual
+pip install perpetual
+# also very easy
+```
+
 ## tradiational
 
 - ARIMA/SARIMA Models: Good for univariate time series but may not capture complex patterns.
