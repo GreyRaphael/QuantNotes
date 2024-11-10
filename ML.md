@@ -2,7 +2,8 @@
 
 - [Machine Learning for secrities](#machine-learning-for-secrities)
   - [AutoML](#automl)
-    - [flaml gbm](#flaml-gbm)
+    - [perpetual gbm automl](#perpetual-gbm-automl)
+    - [flaml gbm automl](#flaml-gbm-automl)
   - [tradiational](#tradiational)
   - [gbm](#gbm)
     - [lightGBM](#lightgbm)
@@ -22,13 +23,28 @@ AutoML [frameworks](https://openml.github.io/automlbenchmark/frameworks.html)
 - h2o-3(6.9k stars): hard to use
 
 
-```bash
-# AutoML by perpetual
-pip install perpetual
-# also very easy
+### perpetual gbm automl
+
+`pip install perpetual`
+
+```py
+import perpetual
+from flaml.automl.data import load_openml_dataset
+from sklearn.metrics import r2_score
+
+X_train, X_test, y_train, y_test = load_openml_dataset(dataset_id=537, data_dir="./")
+
+model = perpetual.PerpetualBooster(objective="SquaredLoss")
+model.fit(X_train, y_train, budget=0.8)  # only tuning this budget: [0.0, 1.0]
+y_trained_pred = model.predict(X_train)
+print(f"Train r2={r2_score(y_train, y_trained_pred)}")
+
+y_pred = model.predict(X_test)
+print(f"Test r2={r2_score(y_test, y_pred)}")
+print(model.calculate_feature_importance())
 ```
 
-### flaml gbm
+### flaml gbm automl
 
 `pip install "flaml[automl]"`
 > very easy: following the guide: https://microsoft.github.io/FLAML/docs/Examples/AutoML-Regression
@@ -42,7 +58,7 @@ from sklearn.metrics import r2_score
 automl = AutoML()
 # Specify automl goal and constraint
 automl_settings = {
-    "time_budget": 10,  # in seconds
+    "time_budget": 30,  # in seconds, tuning this
     "metric": "r2",
     "task": "regression",
     "estimator_list": ["lgbm", "xgboost"],
@@ -52,9 +68,8 @@ automl_settings = {
 
 # X_train shape: (15480, 8), y_train shape: (15480,)
 # X_test shape: (5160, 8), y_test shape: (5160,)
+# data from: https://www.openml.org/d/537
 X_train, X_test, y_train, y_test = load_openml_dataset(dataset_id=537, data_dir="./")
-print(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
-print(f"X_test shape: {X_test.shape}, y_test shape: {y_test.shape}")
 
 # Train with labeled input data
 automl.fit(X_train=X_train, y_train=y_train, **automl_settings)
