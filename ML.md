@@ -2,6 +2,7 @@
 
 - [Machine Learning for secrities](#machine-learning-for-secrities)
   - [AutoML](#automl)
+    - [flaml gbm](#flaml-gbm)
   - [tradiational](#tradiational)
   - [gbm](#gbm)
     - [lightGBM](#lightgbm)
@@ -20,18 +21,52 @@ AutoML [frameworks](https://openml.github.io/automlbenchmark/frameworks.html)
 - mljar-supervised(3k stars): too many parameters
 - h2o-3(6.9k stars): hard to use
 
-```bash
-# AutoML by lightGBM or XGBoost
-pip install "flaml[automl]"
-
-# very easy
-# following the guide: https://microsoft.github.io/FLAML/docs/Examples/AutoML-Regression
-```
 
 ```bash
 # AutoML by perpetual
 pip install perpetual
 # also very easy
+```
+
+### flaml gbm
+
+`pip install "flaml[automl]"`
+> very easy: following the guide: https://microsoft.github.io/FLAML/docs/Examples/AutoML-Regression
+
+```py
+from flaml import AutoML
+from flaml.automl.data import load_openml_dataset
+from sklearn.metrics import r2_score
+
+# Initialize an AutoML instance
+automl = AutoML()
+# Specify automl goal and constraint
+automl_settings = {
+    "time_budget": 10,  # in seconds
+    "metric": "r2",
+    "task": "regression",
+    "estimator_list": ["lgbm", "xgboost"],
+    "log_file_name": "california.log",
+    "seed": 7654321,  # random seed
+}
+
+# X_train shape: (15480, 8), y_train shape: (15480,)
+# X_test shape: (5160, 8), y_test shape: (5160,)
+X_train, X_test, y_train, y_test = load_openml_dataset(dataset_id=537, data_dir="./")
+print(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+print(f"X_test shape: {X_test.shape}, y_test shape: {y_test.shape}")
+
+# Train with labeled input data
+automl.fit(X_train=X_train, y_train=y_train, **automl_settings)
+# Print the best model
+print(automl.model.estimator)
+print(f"Best r2 on validation data: {1 - automl.best_loss}")
+# Predict
+y_pred = automl.predict(X_test)
+print(f"Test r2: {r2_score(y_test, y_pred)}")
+
+print(f"feature_names: {automl.feature_names_in_}")
+print(f"importances: {automl.feature_importances_}")
 ```
 
 ## tradiational
