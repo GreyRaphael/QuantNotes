@@ -4,6 +4,7 @@
   - [C++](#c)
   - [Python](#python)
     - [duckdb stream mode](#duckdb-stream-mode)
+    - [duckdb add new column](#duckdb-add-new-column)
 
 ## C++
 
@@ -150,4 +151,20 @@ for i in range(1, 10000):  # Simulate real-time points
     # Calculate and display SMA
     value = calculate_sma(conn)
     print(f"Current SMA at {i}: {value}")
+```
+
+### duckdb add new column
+
+```py
+import duckdb
+import polars as pl
+
+conn=duckdb.connect('bar1d.db', read_only=False)
+# add new column
+conn.execute("ALTER TABLE etf ADD COLUMN sector UINT64")
+
+# read data
+df=pl.read_ipc('sector.ipc')
+conn.execute('UPDATE etf SET sector=df.sector FROM df WHERE etf.code=df.code')
+conn.close()
 ```
