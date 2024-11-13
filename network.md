@@ -41,6 +41,10 @@ IBM [DOCS](https://www.ibm.com/docs/en/aix/7.1?topic=s-socket-subroutine)
 
 ## libhv
 
+libhv attention
+- 内网模式使用kcp比较慢，kcp更加适合互联网场景
+- 如果发第一条消息，应该放到`onopen`中，避免多线程冲突, [example](network/echo/ws_cli.cpp)
+
 ### enable features in libhv
 
 how to enable **Unix Domain Socket** and **KCP** in [libhv config](https://github.com/ithewei/libhv/blob/master/config.ini)?
