@@ -5,6 +5,7 @@
   - [Python](#python)
     - [duckdb stream mode](#duckdb-stream-mode)
     - [duckdb add new column](#duckdb-add-new-column)
+  - [Rust](#rust)
 
 ## C++
 
@@ -167,4 +168,41 @@ conn.execute("ALTER TABLE etf ADD COLUMN sector UINT64")
 df=pl.read_ipc('sector.ipc')
 conn.execute('UPDATE etf SET sector=df.sector FROM df WHERE etf.code=df.code')
 conn.close()
+```
+
+## Rust
+
+simplest way `cargo add duckdb --features bundled`
+
+```rs
+use duckdb::{params, Connection, Result};
+
+#[derive(Debug)]
+struct Stock {
+    code: u32,
+    dt: i32,
+    close: u32,
+}
+
+fn main() -> Result<()> {
+    let path = "bar1d.db";
+    let conn = Connection::open(&path)?;
+
+    let mut stmt = conn.prepare("SELECT code, dt, close*adjfactor FROM etf WHERE code = ?")?;
+    let code = 510050;
+    let rows = stmt.query_map(params![code], |row| {
+        Ok((
+            row.get::<_, u32>(0)?, // code
+            row.get::<_, i32>(1)?, // date
+            row.get::<_, f64>(2)?, // close
+        ))
+    })?;
+
+    for row in rows {
+        let (code, date, close) = row?;
+        println!("Code: {}, Date: {}, Close: {}", code, date, close);
+    }
+
+    Ok(())
+}
 ```
