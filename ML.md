@@ -14,6 +14,8 @@
 
 ## AutoML
 
+> Acceptable R² values can vary by field. For example, in some social sciences, an R² of 0.3 might be considered good, while in engineering, you might aim for 0.9 or higher.
+
 AutoML [frameworks](https://openml.github.io/automlbenchmark/frameworks.html)
 - Flaml(4k stars, **recommended**): support xgb,lgb,torch; easy2use
 - AutoGluon(8k stars, **recommended**): support xgb,lgb,torch; too hard to install
