@@ -206,3 +206,48 @@ fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+arrow interface: query results without requiring predefined structures
+
+```rs
+use duckdb::{Connection, Result};
+use duckdb::arrow::record_batch::RecordBatch;
+use duckdb::arrow::util::pretty::print_batches;
+use duckdb::arrow::array::ArrayRef;
+
+fn main() -> Result<()> {
+    let path = "bar1d.db";
+    let conn = Connection::open(&path)?;
+
+    // Define your SQL query
+    let sql = "SELECT code, dt, close*adjfactor FROM etf WHERE code = 510050";
+
+    // Prepare and execute the query
+    let mut stmt = conn.prepare(sql)?;
+    let arrow = stmt.query_arrow([])?;
+
+    // Collect the Record Batches
+    let record_batches: Vec<RecordBatch> = arrow.collect();
+    // Print the Record Batches for inspection
+    print_batches(&record_batches);
+
+    // Iterate over each Record Batch
+    for batch in &record_batches {
+        // Get the schema to access column names
+        let schema = batch.schema();
+        let columns = schema.fields();
+
+        // Iterate over each column
+        for (i, column) in columns.iter().enumerate() {
+            let column_name = column.name();
+            let array: &ArrayRef = batch.column(i);
+
+            // Process the array as needed
+            // For example, print the column name and number of rows
+            println!("Column: {}, Rows: {}", column_name, array.len());
+        }
+    }
+
+    Ok(())
+}
+```
