@@ -2,13 +2,14 @@
 #include <hv/WebSocketServer.h>
 
 int main(int argc, char **argv) {
-    if (argc < 4) {
-        fmt::println("usage: {} HOST PORT IO_THD_NUM(>=0)", argv[0]);
+    if (argc < 5) {
+        fmt::println("usage: {} HOST PORT MODE(0|1) WORKERS(>=0)", argv[0]);
         return 1;
     }
     auto host = argv[1];
     auto port = atoi(argv[2]);
-    auto io_thread_num = atoi(argv[3]);
+    auto mode = atoi(argv[3]);
+    auto workers = atoi(argv[4]);  // worker number
 
     WebSocketService ws;
     ws.onopen = [](const WebSocketChannelPtr &channel, const HttpRequestPtr &req) {
@@ -24,7 +25,13 @@ int main(int argc, char **argv) {
     hv::WebSocketServer srv{&ws};
     srv.setHost(host);
     srv.setPort(port);
-    srv.setThreadNum(1 + io_thread_num);
+
+    if (mode == 0) {
+        srv.setThreadNum(1 + workers);
+    } else if (mode == 1) {
+        srv.setProcessNum(1 + workers);
+    }
+
     fmt::println("ws listening on {}:{}", host, port);
     srv.run();
 }
