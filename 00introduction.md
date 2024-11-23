@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
   - [stock randomness](#stock-randomness)
+    - [some kinds of random walk](#some-kinds-of-random-walk)
 
 ## stock randomness
 
@@ -28,3 +29,27 @@ print(test_results)
 # 10  8.8952   0.5422
 # lb_pvalue > 0.05, so it is white noise
 ```
+
+### some kinds of random walk
+
+$\epsilon_t$ is white noise
+
+$$\epsilon_t, E(\epsilon_t)=0, D(\epsilon_t)=\sigma^2<\infty$$
+
+- diff following normal distribution:
+
+$$X_t = X_{t-1} + \epsilon_t$$
+
+$$(X_t - X_{t-1}) \sim N(0, \sigma^2)$$
+
+- divede following normal distribution:
+
+$$X_t = X_{t-1} \times \epsilon_t$$
+
+$$\frac{X_t}{X_{t-1}} \sim N(0, \sigma^2)$$
+
+- binomial distribution:
+
+$$X_t = X_{t-1} \times \epsilon_t, \epsilon_t \sim Bin(n, 0.5)$$
+
+$$\frac{X_t}{X_{t-1}} \sim Bin(n, 0.5)$$
