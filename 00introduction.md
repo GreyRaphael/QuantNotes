@@ -32,10 +32,12 @@ print(test_results)
 
 ### some kinds of random walk
 
-$\epsilon_t$ is white noise
+$\epsilon_t$ is white noise, it meets the following conditions:
+1. $E(\epsilon_t)=0$, average is 0
+2. $D(\epsilon_t)=\sigma^2<\infty$, variance is finite fixed value
+3. $Cov(\epsilon_t, \epsilon_s)=0$, autocorrelation is 0
 
-$$\epsilon_t, E(\epsilon_t)=0, D(\epsilon_t)=\sigma^2<\infty$$
-
+some kinds of random process:
 - diff following normal distribution:
 
 $$X_t = X_{t-1} + \epsilon_t$$
