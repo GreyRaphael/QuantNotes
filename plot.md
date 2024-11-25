@@ -31,32 +31,24 @@ alt.renderers.enable("browser")
 
 # read sample dataframe
 source = data.ohlc()
-open_close_color = alt.when("datum.close > datum.open").then(alt.value("red")).otherwise(alt.value("green"))
+open_close_color = alt.condition("datum.close>datum.open", alt.value("red"), alt.value("green"))
 base = alt.Chart(source).encode(
     alt.X("date:T").axis(format="%Y-%m-%d", labelAngle=-45).title("Date"),
     color=open_close_color,
-    tooltip=[
-        alt.Tooltip("date:T", title="Date"),
-        alt.Tooltip("open:Q", title="Open"),
-        alt.Tooltip("high:Q", title="High"),
-        alt.Tooltip("low:Q", title="Low"),
-        alt.Tooltip("close:Q", title="Close"),
-    ],
+    tooltip=["date", "open", "high", "low", "close"],
 )
-# can zoom in and out
-base = base.interactive()
 
 rule = base.mark_rule().encode(
-    alt.Y("low:Q").title("Price").scale(zero=False),
-    alt.Y2("high:Q"),
+    alt.Y("low").title("Price"),
+    alt.Y2("high"),
 )
 
 bar = base.mark_bar().encode(
-    alt.Y("open:Q"),
-    alt.Y2("close:Q"),
+    alt.Y("open"),
+    alt.Y2("close"),
 )
 
-candel = (rule + bar).properties(width=1000).configure_scale(zero=False)
+candel = (rule + bar).properties(width=1000).configure_scale(zero=False).interactive()
 candel.show()
 ```
 
@@ -71,36 +63,30 @@ alt.renderers.enable("browser")
 
 # read sample dataframe
 source = data.ohlc()
-open_close_color = alt.when("datum.close > datum.open").then(alt.value("red")).otherwise(alt.value("green"))
+open_close_color = alt.condition("datum.close>datum.open", alt.value("red"), alt.value("green"))
 base = alt.Chart(source).encode(
     alt.X("date:T").axis(format="%Y-%m-%d", labelAngle=-45).title("Date"),
     color=open_close_color,
-    tooltip=[
-        alt.Tooltip("date:T", title="Date"),
-        alt.Tooltip("open:Q", title="Open"),
-        alt.Tooltip("high:Q", title="High"),
-        alt.Tooltip("low:Q", title="Low"),
-        alt.Tooltip("close:Q", title="Close"),
-    ],
+    tooltip=["date", "open", "high", "low", "close", "signal"],
 )
-# can zoom in and out
-base = base.interactive()
 
 rule = base.mark_rule().encode(
-    alt.Y("low:Q").title("Price").scale(zero=False),
-    alt.Y2("high:Q"),
+    alt.Y("low").title("Price"),
+    alt.Y2("high"),
 )
-
 
 bar = base.mark_bar(
     fillOpacity=0,  # Make the bar hollow
     strokeWidth=1.5,  # Define the stroke width
 ).encode(
-    y="open:Q",
-    y2="close:Q",
+    y="open",
+    y2="close",
     stroke=open_close_color,
 )
 
-candel = (rule + bar).properties(width=1000).configure_scale(zero=False)
-candel.show()
+long_markers = base.transform_filter(alt.datum.signal == "long").mark_point(shape="triangle-up", color="blue", size=80).encode(y="low")
+short_markers = base.transform_filter(alt.datum.signal == "short").mark_point(shape="triangle-down", color="yellow", size=80).encode(y="high")
+
+candles = (rule + bar + long_markers + short_markers).properties(width=1000).configure_scale(zero=False).interactive()
+candles.show()
 ```
