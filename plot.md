@@ -84,9 +84,57 @@ bar = base.mark_bar(
     stroke=open_close_color,
 )
 
-long_markers = base.transform_filter(alt.datum.signal == "long").mark_point(shape="triangle-up", color="blue", size=80).encode(y="low")
-short_markers = base.transform_filter(alt.datum.signal == "short").mark_point(shape="triangle-down", color="yellow", size=80).encode(y="high")
+long_markers = (
+    base.transform_filter(alt.datum.signal == "long")
+    .mark_point(shape="triangle-up", size=80)
+    .encode(
+        y="low",
+        color=alt.value("blue"),  # Override inherited color
+        yOffset=alt.value(10),
+    )
+)
+short_markers = (
+    base.transform_filter(alt.datum.signal == "short")
+    .mark_point(shape="triangle-down", size=80)
+    .encode(
+        y="high",
+        color=alt.value("brown"),  # Override inherited color
+        yOffset=alt.value(-10),
+    )
+)
 
-candles = (rule + bar + long_markers + short_markers).properties(width=1000).configure_scale(zero=False).interactive()
+long_text = (
+    base.transform_filter(alt.datum.signal == "long")
+    .mark_text(
+        align="center",
+        baseline="middle",
+        dx=-25,  # Adjust horizontal offset
+        # dy=25,  # Adjust vertical offset
+        angle=315,
+    )
+    .encode(
+        y="low",
+        color=alt.value("blue"),
+        text=alt.Text("signal"),
+    )
+)
+
+short_text = (
+    base.transform_filter(alt.datum.signal == "short")
+    .mark_text(
+        align="center",
+        baseline="middle",
+        dx=-25,  # Adjust horizontal offset
+        # dy=25,  # Adjust vertical offset
+        angle=60,
+    )
+    .encode(
+        y="high",
+        color=alt.value("brown"),
+        text=alt.Text("signal"),
+    )
+)
+
+candles = (rule + bar + long_markers + long_text + short_markers + short_text).properties(width=1600).configure_scale(zero=False).interactive()
 candles.show()
 ```
