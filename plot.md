@@ -106,11 +106,10 @@ short_markers = (
 long_text = (
     base.transform_filter(alt.datum.signal == "long")
     .mark_text(
-        align="center",
-        baseline="middle",
-        dx=-25,  # Adjust horizontal offset
-        # dy=25,  # Adjust vertical offset
-        angle=315,
+        align="left",
+        baseline="top",
+        angle=45,
+        yOffset=20,
     )
     .encode(
         y="low",
@@ -122,11 +121,10 @@ long_text = (
 short_text = (
     base.transform_filter(alt.datum.signal == "short")
     .mark_text(
-        align="center",
-        baseline="middle",
-        dx=-25,  # Adjust horizontal offset
-        # dy=25,  # Adjust vertical offset
+        align="right",
+        baseline="bottom",
         angle=60,
+        yOffset=-20,
     )
     .encode(
         y="high",
@@ -135,6 +133,8 @@ short_text = (
     )
 )
 
-candles = (rule + bar + long_markers + long_text + short_markers + short_text).properties(width=1600).configure_scale(zero=False).interactive()
+# zero: not base on 0
+# continuousPadding: add padding
+candles = (rule + bar + long_markers + long_text + short_markers + short_text).properties(width=1200).configure_scale(zero=False, continuousPadding=50).interactive()
 candles.show()
 ```
