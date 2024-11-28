@@ -3,6 +3,7 @@
 - [Machine Learning for secrities](#machine-learning-for-secrities)
   - [AutoML](#automl)
     - [perpetual gbm automl](#perpetual-gbm-automl)
+      - [perpetual in rust](#perpetual-in-rust)
     - [flaml gbm automl](#flaml-gbm-automl)
   - [tradiational](#tradiational)
   - [gbm](#gbm)
@@ -44,6 +45,28 @@ print(f"Train r2={r2_score(y_train, y_trained_pred)}")
 y_pred = model.predict(X_test)
 print(f"Test r2={r2_score(y_test, y_pred)}")
 print(model.calculate_feature_importance())
+```
+
+#### perpetual in rust
+
+best practice: use python to train the dataset and save model, load model in rust and predict
+
+> rust must be nightly version  
+> `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`  
+> `rustup default beta`
+
+How to use: `cargo add perpetual`
+
+```rs
+use perpetual::{Matrix, PerpetualBooster};
+
+fn main() {
+    let model = PerpetualBooster::load_booster("my.model").expect("load eror");
+    let record = vec![-121.24, 39.37, 16.0, 2785.0, 616.0, 1387.0, 530.0, 2.3886];
+    let input = Matrix::new(&record, 1, 8);
+    let result = model.predict(&input, false);
+    println!("prediction={:?}", result);
+}
 ```
 
 ### flaml gbm automl
