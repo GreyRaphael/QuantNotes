@@ -8,6 +8,7 @@
     - [tcp example](#tcp-example)
       - [solve sticky packet](#solve-sticky-packet)
     - [udp example](#udp-example)
+    - [send GET or POST requests and parse JSON](#send-get-or-post-requests-and-parse-json)
     - [kcp server and client](#kcp-server-and-client)
     - [python kcp client](#python-kcp-client)
   - [unix domain socket in python SOCK\_STREAM](#unix-domain-socket-in-python-sock_stream)
@@ -699,6 +700,63 @@ int main(int argc, char* argv[]) {
     }
 
     while (getchar() != '\n');
+}
+```
+
+### send GET or POST requests and parse JSON
+
+> it just is a http client
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20.0)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(proj1 main.cpp)
+
+find_package(fmt CONFIG REQUIRED)
+target_link_libraries(proj1 PRIVATE fmt::fmt)
+
+find_package(libhv CONFIG REQUIRED)
+target_link_libraries(proj1 PRIVATE hv_static)
+```
+
+```cpp
+#include <fmt/core.h>
+#include <hv/HttpMessage.h>
+#include <hv/http_content.h>
+#include <hv/requests.h>  // get or post
+#include <hv/json.hpp>
+
+int main() {
+    // If using https, must change libhv CMakelists.txt WITH_SSL
+    // GET
+    // header is optional, you can also not set it
+    http_headers header{};
+    header["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0";
+    auto resp = requests::get("http://httpbin.org/get?name=grey", header);
+    if (resp == nullptr) {
+        fmt::println("request failed, code={}", int(resp->status_code));
+    } else {
+        fmt::println("code={}, msg={}", int(resp->status_code), resp->status_message());
+        if (resp->status_code == 200) {
+            auto body = resp->Body();
+            auto j = hv::Json::parse(body);
+            fmt::println("response body is:\n{}", j.dump(4));
+        }
+    }
+
+    // POST
+    http_body req_body{"pg=0&pz=200"};
+    resp = requests::post("http://httpbin.org/post?name=grey", req_body);
+    if (resp != nullptr) {
+        if (resp->status_code == 200) {
+            auto body = resp->Body();
+            auto j = hv::Json::parse(body);
+            fmt::println("response body is:\n{}", j.dump(4));
+        }
+    }
 }
 ```
 
