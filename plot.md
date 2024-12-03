@@ -138,3 +138,23 @@ short_text = (
 candles = (rule + bar + long_markers + long_text + short_markers + short_text).properties(width=1200).configure_scale(zero=False, continuousPadding=50).interactive()
 candles.show()
 ```
+
+fix text overlapping
+
+```py
+import altair as alt
+import polars as pl
+
+df = pl.DataFrame(
+    {
+        "x": [1, 2, 2, 3, 4, 5, 6, 6, 6],
+        "y": [4, 8, 8, 9, 11, 12, 9, 9, 9],
+        "id": [i for i in range(9)],
+    }
+)
+
+alt.Chart(df).transform_window(
+    cumulative_count="count()",
+    groupby=["x", "y"],
+).mark_text(dy=alt.expr("20 * datum.cumulative_count")).encode(x="x", y="y", text="y")
+```
