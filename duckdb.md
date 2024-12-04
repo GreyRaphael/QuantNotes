@@ -251,3 +251,75 @@ fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+multithread query duckdb for CPU-bound tasks
+> `cargo add rayon`  
+> `cargo add duckdb --features bundled`  
+
+```rs
+use duckdb::{params, Connection, Result};
+use rayon::prelude::*; // Import rayon for parallel iteration
+
+struct DuckdbReplayer {
+    path: String,
+}
+
+impl DuckdbReplayer {
+    fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+        }
+    }
+
+    // Method to query the stock data based on the code
+    fn query_stock_data(&self, code: u32) -> Result<Vec<(u32, i32, f64)>> {
+        let conn = Connection::open(&self.path)?;
+        let mut stmt = conn.prepare("SELECT code, dt, close*adjfactor FROM etf WHERE code = ?")?;
+        let rows = stmt.query_map(params![code], |row| {
+            Ok((
+                row.get::<_, u32>(0)?, // code
+                row.get::<_, i32>(1)?, // date
+                row.get::<_, f64>(2)?, // close
+            ))
+        })?;
+
+        // Collect the results into a vector
+        let mut result = Vec::with_capacity(1024);
+        for row in rows {
+            result.push(row?);
+        }
+
+        Ok(result)
+    }
+
+    // Method to query multiple stock codes in parallel using Rayon
+    fn query_multiple_stock_data(&self, codes: &[u32]) -> Vec<Result<Vec<(u32, i32, f64)>>> {
+        // Use Rayon to process the codes in parallel
+        codes
+            .into_par_iter() // parallel iterator
+            .map(|&code| self.query_stock_data(code)) // Map over the codes and perform queries
+            .collect() // Collect all the results into a vector
+    }
+}
+
+fn main() {
+    let replayer = DuckdbReplayer::new("bar1d.db");
+    let codes = vec![510050, 513500, 159659];
+    let stock_data = replayer.query_multiple_stock_data(&codes);
+
+    // Print the results
+    for (i, data) in stock_data.iter().enumerate() {
+        println!("Results for code {}:", codes[i]);
+        match data {
+            Ok(code_records) => {
+                for (code, date, close) in code_records {
+                    println!("  Code: {}, Date: {}, Close: {}", code, date, close);
+                }
+            }
+            Err(e) => {
+                println!("  Error querying code {}: {}", codes[i], e);
+            }
+        }
+    }
+}
+```
