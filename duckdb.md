@@ -1369,34 +1369,20 @@ fn main() -> Result<(), duckdb::Error> {
     // Define the database URI
     let uri = "bar1d.db";
     // Define the date range
-    let start_date = "2024-11-20";
-    let end_date = "2024-12-31";
+    let start = "2024-11-20";
+    let end = "2024-12-31";
 
     // List of codes to process
     let code_list: Vec<u32> = vec![510050, 513500, 159659];
 
-    // Process Bars with different strategies
-    for &code in &code_list {
-        let mut engine = Engine::<Bar>::new(uri, code, start_date, end_date);
-        // Add strategies that implement Strategy<Bar>
-        for i in 0..100 {
-            engine.add_strategy(Box::new(StrategyA));
-        }
-
-        engine.add_strategy(Box::new(StrategyB));
-        // Add more strategies as needed, e.g., engine.add_strategy(Box::new(StrategyC));
-        engine.run()?;
-    }
-
-    // Process Ticks with different strategies
-    for &code in &code_list {
-        let mut engine = Engine::<Tick>::new(uri, code, start_date, end_date);
-        // Add strategies that implement Strategy<Tick>
+    code_list.par_iter().for_each(|&code| {
+        let mut engine = Engine::<Bar>::new(uri, code, start, end);
         engine.add_strategy(Box::new(StrategyA));
         engine.add_strategy(Box::new(StrategyB));
-        // Add more strategies as needed, e.g., engine.add_strategy(Box::new(StrategyC));
-        engine.run()?;
-    }
+        if let Err(e) = engine.run() {
+            eprintln!("Error processing Bar code {}: {:?}", code, e);
+        }
+    });
 
     Ok(())
 }
