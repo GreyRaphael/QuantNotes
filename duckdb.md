@@ -1388,3 +1388,24 @@ fn main() -> Result<(), duckdb::Error> {
 }
 ```
 
+To further optimize your system by parallelizing the processing of **5000 codes** in addition to the existing parallelization of **1000 strategies**, you can leverage Rayon’s powerful parallel iterators.
+
+However, it's essential to approach this carefully to ensure efficient resource utilization and avoid potential performance bottlenecks due to **nested parallelism** (parallelizing both codes and strategies simultaneously).
+
+Below, I’ll guide you through the necessary steps to parallelize both levels effectively:
+
+1. **Understand the Current Parallelization:**
+   - **Strategies Parallelization:** You’re already using Rayon to execute 1000 strategies in parallel for each code.
+   - **Codes Parallelization:** Now, you want to process 5000 codes concurrently, each running its own set of strategies.
+
+2. **Challenges with Nested Parallelism:**
+   - **Resource Contention:** Parallelizing both codes and strategies can lead to excessive thread creation, causing CPU and memory contention.
+   - **Performance Overhead:** Nested parallelism might introduce overheads that negate the benefits of parallel execution.
+
+3. **Solution: Single-Level Parallelism with Task Batching**
+   
+   Instead of parallelizing both codes and strategies simultaneously, you can **parallelize the outer loop (codes)** and keep the **inner loop (strategies)** sequential or vice versa. This approach prevents excessive thread creation and manages resources efficiently.
+
+   Given that strategies are already parallelized, and considering the high number of codes (5000), it's more manageable to parallelize the **codes** and execute strategies **sequentially** within each code's processing. Alternatively, you can manage parallelism depth by adjusting Rayon’s thread pool.
+
+   For simplicity and efficiency, I'll demonstrate **parallelizing the codes** while keeping the **strategies parallelized** within each code. This approach leverages Rayon’s work-stealing scheduler to manage the workload effectively.
