@@ -5,6 +5,7 @@
     - [some kinds of random walk](#some-kinds-of-random-walk)
     - [how to determine the white noise](#how-to-determine-the-white-noise)
     - [random walk strategy](#random-walk-strategy)
+  - [kline](#kline)
 
 ## stock randomness
 
@@ -95,3 +96,25 @@ If stock returns follow a random walk, meaning their future movements are unpred
 - **Risk Management**: Regardless of the chosen strategy, implementing robust risk management practices is crucial. This includes setting appropriate position sizes, using stop-loss orders, and regularly reviewing and adjusting the investment portfolio to align with financial goals and risk tolerance.
 
 In summary, if stock returns adhere to a random walk, passive investment strategies like investing in diversified index funds or employing a buy-and-hold approach are generally considered effective. While grid trading can offer opportunities in certain market conditions, it requires careful implementation and risk management to be successful. 
+
+
+## kline
+
+from bar1m to bar5m
+
+```py
+import polars as pl
+
+df = pl.read_ipc("etf-kl1m/2024/*.ipc")
+df30min=df.group_by_dynamic("dt", every="30m", period="30m", closed="left", label="right", group_by="code").agg(
+    [
+        pl.first("open"),
+        pl.max("high"),
+        pl.min("low"),
+        pl.last("last"),
+        pl.sum("num_trades"),
+        pl.sum("volume"),
+        pl.sum("amount"),
+    ]
+).sort(by=['code','dt'])
+```
