@@ -100,21 +100,25 @@ In summary, if stock returns adhere to a random walk, passive investment strateg
 
 ## kline
 
-from bar1m to bar5m
+from tick to bar1m
 
 ```py
 import polars as pl
 
 df = pl.read_ipc("etf-kl1m/2024/*.ipc")
-df30min=df.group_by_dynamic("dt", every="30m", period="30m", closed="left", label="right", group_by="code").agg(
-    [
-        pl.first("open"),
-        pl.max("high"),
-        pl.min("low"),
-        pl.last("last"),
-        pl.sum("num_trades"),
-        pl.sum("volume"),
-        pl.sum("amount"),
-    ]
-).sort(by=['code','dt'])
+df30min = (
+    df.group_by_dynamic("dt", every="1m", period="1m", closed="left", label="right", group_by="code")
+    .agg(
+        [
+            pl.first("last").alias("open"),
+            pl.max("last").alias("high"),
+            pl.min("last").alias("low"),
+            pl.last("last").alias("close"),
+            pl.last("volume"),
+            pl.last("amount"),
+        ]
+    )
+    .with_columns(pl.col("volume").diff(), pl.col("amount").diff())
+    .sort(by=["code", "dt"])
+)
 ```
