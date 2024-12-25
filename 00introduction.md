@@ -118,7 +118,7 @@ df30min = (
             pl.last("amount"),
         ]
     )
-    .with_columns(pl.col("volume").diff(), pl.col("amount").diff())
     .sort(by=["code", "dt"])
+    .with_columns(pl.col("volume").diff().over("code"), pl.col("amount").diff().over("code"))
 )
 ```
