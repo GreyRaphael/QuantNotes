@@ -106,8 +106,9 @@ from tick to bar1m
 import polars as pl
 
 df = pl.read_ipc("etf-kl1m/2024/*.ipc")
-df30min = (
-    df.group_by_dynamic("dt", every="1m", period="1m", closed="left", label="right", group_by="code")
+interval = 1 # 1min
+dfx = (
+    df.group_by_dynamic("dt", every=f"{interval}m", period=f"{interval}m", closed="left", label="right", group_by="code")
     .agg(
         [
             pl.first("last").alias("open"),
@@ -116,9 +117,21 @@ df30min = (
             pl.last("last").alias("close"),
             pl.last("volume"),
             pl.last("amount"),
+            pl.last("num_trades"),
         ]
     )
     .sort(by=["code", "dt"])
-    .with_columns(pl.col("volume").diff().over("code"), pl.col("amount").diff().over("code"))
+    .with_columns(
+        pl.col("volume").diff().over("code"),
+        pl.col("amount").diff().over("code"),
+        pl.col("num_trades").diff().over("code"),
+    )
+    .filter(pl.col("volume").is_not_null())
+    .filter(
+        ~(
+            (pl.col("volume") == 0)
+            & ((pl.col("dt").dt.time().cast(pl.Int64) == (11 * 3600 + 30 * 60 + interval * 60) * 1e9) | (pl.col("dt").dt.time().cast(pl.Int64) == (15 * 3600 + interval * 60) * 1e9))
+        )
+    )
 )
 ```
