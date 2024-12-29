@@ -207,4 +207,32 @@ def prepare_bar1m(target_dt: dt.date) -> pl.DataFrame:
         )
     )
     return df_aligned_bar1m
+
+# bar1m to bar5m, bar10m, bar30m, bar1h, bar2h
+def generate_bar(df_aligned_bar1m: pl.DataFrame, minute_interval: int = 10) -> pl.DataFrame:
+    df_bar = (
+        df_aligned_bar1m.filter(pl.col("dt").dt.time() > dt.time(9, 30))
+        .with_columns(
+            ((pl.cum_count("dt") - 1).over("code") // minute_interval).alias("count"),
+        )
+        .group_by(
+            by=["code", "count"],
+            maintain_order=True,
+        )
+        .agg(
+            [
+                pl.last("dt"),
+                pl.first("preclose"),
+                pl.first("open"),
+                pl.max("high"),
+                pl.min("low"),
+                pl.last("close"),
+                pl.sum("volume"),
+                pl.sum("amount"),
+                pl.sum("num_trades"),
+            ]
+        )
+        .select(pl.exclude("count"))
+    )
+    return df_bar
 ```
