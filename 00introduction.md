@@ -100,38 +100,111 @@ In summary, if stock returns adhere to a random walk, passive investment strateg
 
 ## kline
 
-from tick to bar1m
+from tick to bar1m, then from bar1m to bar5m, bar10m, bar30m, bar1h bar2h
 
 ```py
 import polars as pl
+import datetime as dt
 
-df = pl.read_ipc("etf-kl1m/2024/*.ipc")
-interval = 1 # 1min
-dfx = (
-    df.group_by_dynamic("dt", every=f"{interval}m", period=f"{interval}m", closed="left", label="right", group_by="code")
-    .agg(
-        [
-            pl.first("last").alias("open"),
-            pl.max("last").alias("high"),
-            pl.min("last").alias("low"),
-            pl.last("last").alias("close"),
-            pl.last("volume"),
-            pl.last("amount"),
-            pl.last("num_trades"),
-        ]
-    )
-    .sort(by=["code", "dt"])
-    .with_columns(
-        pl.col("volume").diff().over("code"),
-        pl.col("amount").diff().over("code"),
-        pl.col("num_trades").diff().over("code"),
-    )
-    .filter(pl.col("volume").is_not_null())
-    .filter(
-        ~(
-            (pl.col("volume") == 0)
-            & ((pl.col("dt").dt.time().cast(pl.Int64) == (11 * 3600 + 30 * 60 + interval * 60) * 1e9) | (pl.col("dt").dt.time().cast(pl.Int64) == (15 * 3600 + interval * 60) * 1e9))
+
+def prepare_bar1m(target_dt: dt.date) -> pl.DataFrame:
+    target_filename = target_dt.strftime("%Y%m%d.ipc")
+    df = pl.read_ipc(target_filename)  # read tick, df is sorted by [code, dt]
+
+    # duplicate the first row of each code to 8:00
+    df_first = (
+        df.group_by("code")
+        .first()
+        .with_columns(
+            pl.col("dt").dt.replace(hour=8),
+            volume=pl.lit(0, pl.UInt64),
+            amount=pl.lit(0, pl.UInt64),
+            num_trades=pl.lit(0, pl.UInt32),
         )
     )
-)
+
+    # change >=11:30:00 to 11:29:59.999
+    # change >=15:00:00 to 14:59:59.999
+    df_body = df.with_columns(
+        pl.when(
+            ((pl.col("dt").dt.hour() == 11) & (pl.col("dt").dt.minute() == 30)) | ((pl.col("dt").dt.hour() == 15) & (pl.col("dt").dt.minute() == 0)),
+        )
+        .then(
+            pl.col("dt").dt.replace(second=0, microsecond=0) - dt.timedelta(milliseconds=1),
+        )
+        .otherwise("dt")
+        .alias("dt")
+    )
+
+    # concat the two dataframes
+    dff = pl.concat([df_first, df_body]).sort(by=["code", "dt"])
+    # group by 1 minute
+
+    df_bar1m = (
+        dff.group_by_dynamic("dt", every="1m", period="1m", closed="left", label="right", group_by="code")
+        .agg(
+            [
+                pl.first("preclose").alias("preclose"),
+                pl.first("last").alias("open"),
+                pl.max("last").alias("high"),
+                pl.min("last").alias("low"),
+                pl.last("last").alias("close"),
+                pl.last("volume"),
+                pl.last("amount"),
+                pl.last("num_trades"),
+            ]
+        )
+        .sort(by=["code", "dt"])
+        .with_columns(
+            pl.col("volume").diff().over("code"),
+            pl.col("amount").diff().over("code"),
+            pl.col("num_trades").diff().over("code"),
+        )
+        .filter(pl.col("volume").is_not_null())
+    )
+
+    # time base
+    # [09:31, ...11:30]
+    # [13:01, ...15:00]
+    dft = pl.concat(
+        [
+            pl.Series([dt.datetime.combine(target_dt, dt.time(9, 26))], dtype=pl.Datetime(time_unit="ms")),
+            pl.datetime_range(
+                start=dt.datetime.combine(target_dt, dt.time(9, 30)),
+                end=dt.datetime.combine(target_dt, dt.time(11, 30)),
+                closed="right",
+                interval="1m",
+                time_unit="ms",
+                eager=True,
+            ),
+            pl.datetime_range(
+                start=dt.datetime.combine(target_dt, dt.time(13, 0)),
+                end=dt.datetime.combine(target_dt, dt.time(15, 0)),
+                closed="right",
+                interval="1m",
+                time_unit="ms",
+                eager=True,
+            ),
+        ]
+    ).to_frame(name="dt")
+    # Cartesian product of uniqute code x datetime
+    dft_base = df.select(pl.col("code").unique()).join(dft, how="cross")
+
+    # df_bar1m aligned
+    df_aligned_bar1m = (
+        dft_base.join(df_bar1m, on=["code", "dt"], how="left")
+        .with_columns(
+            pl.col("code").fill_null(strategy="forward").fill_null(strategy="backward").over("code"),
+            pl.col("close").fill_null(strategy="forward").fill_null(strategy="backward").over("code"),
+            pl.col("volume").fill_null(0).over("code"),
+            pl.col("amount").fill_null(0).over("code"),
+            pl.col("num_trades").fill_null(0).over("code"),
+        )
+        .with_columns(
+            pl.col("open").fill_null(pl.col("close")).over("code"),
+            pl.col("high").fill_null(pl.col("close")).over("code"),
+            pl.col("low").fill_null(pl.col("close")).over("code"),
+        )
+    )
+    return df_aligned_bar1m
 ```
