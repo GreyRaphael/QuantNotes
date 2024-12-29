@@ -216,7 +216,7 @@ def generate_bar(df_aligned_bar1m: pl.DataFrame, minute_interval: int = 10) -> p
             ((pl.cum_count("dt") - 1).over("code") // minute_interval).alias("count"),
         )
         .group_by(
-            by=["code", "count"],
+            ["code", "count"],
             maintain_order=True,
         )
         .agg(
