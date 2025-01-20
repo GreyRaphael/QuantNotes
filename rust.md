@@ -1,5 +1,33 @@
 # Rust with Quant
 
+- [Rust with Quant](#rust-with-quant)
+  - [SIMD](#simd)
+  - [Factor calc](#factor-calc)
+
+## SIMD
+
+use SIMD in rust nightly without any dependencies
+
+```rs
+#![feature(portable_simd)]
+
+use std::simd::{num::SimdFloat, Simd};
+
+fn main() {
+    // This example uses 4-wide f32 vectors.
+    // If you need a different width, you can specify Simd<f32, LANES> with
+    // a matching const generic for the number of lanes.
+    let v = vec![1.0, 2.0, 3.0, 4.0];
+    let a = Simd::<f64, 4>::from_slice(&v);
+    let b = Simd::<f64, 4>::from_array([1.0, 2.0, 3.0, 4.0]);
+
+    // The dot product is computed by multiplying pairwise and then summing the lanes.
+    let dot_product = (a * b).reduce_sum();
+
+    println!("dot(a, b) = {}", dot_product);
+}
+```
+
 ## Factor calc
 
 ```rs
