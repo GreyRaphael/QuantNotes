@@ -28,6 +28,90 @@ fn main() {
 }
 ```
 
+use SIMD for arbitratry length vectors
+> `reduce_sum` is heavy, avoids doing a horizontal sum on every chunk.
+
+```rs
+// good
+#![feature(portable_simd)]
+use std::simd::{f64x4, num::SimdFloat};
+
+/// Compute the dot product of two arbitrary-length slices using 4-wide f64x4 SIMD.
+fn dot_product(a: &[f64], b: &[f64]) -> f64 {
+    // Ensure we don't go out of bounds if lengths differ.
+    let n = a.len().min(b.len());
+
+    // Accumulate partial sums in a SIMD register.
+    let mut simd_sum = f64x4::splat(0.0);
+
+    // Process chunks of 4 at a time.
+    let mut i = 0;
+    while i + 4 <= n {
+        // Load the next chunk of a and b into SIMD registers.
+        let va = f64x4::from_slice(&a[i..i + 4]);
+        let vb = f64x4::from_slice(&b[i..i + 4]);
+
+        // Multiply pairwise, then add to the running sum.
+        simd_sum += va * vb;
+
+        i += 4;
+    }
+
+    // Sum the lanes of `simd_sum` into a single f64.
+    // reduce_sum is heavy, don't put it into the above loop
+    let mut sum = simd_sum.reduce_sum();
+
+    // Process any leftover elements if the length isn't a multiple of 4.
+    while i < n {
+        sum += a[i] * b[i];
+        i += 1;
+    }
+
+    sum
+}
+
+fn main() {
+    let x = vec![
+        1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0,
+        4.0, 5.0,
+    ];
+    let y = vec![
+        1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0,
+        4.0, 5.0,
+    ];
+    let dot = dot_product(&x, &y);
+    println!("dot = {dot}");
+}
+```
+
+```rs
+// less performant
+#![feature(portable_simd)]
+use std::simd::{f64x4, num::SimdFloat};
+
+fn dot_product(a: &[f64], b: &[f64]) -> f64 {
+    let n = a.len().min(b.len());
+    let mut sum = 0.0;
+
+    let mut i = 0;
+    while i + 4 <= n {
+        let va = f64x4::from_slice(&a[i..i + 4]);
+        let vb = f64x4::from_slice(&b[i..i + 4]);
+        sum += (va * vb).reduce_sum();
+
+        i += 4;
+    }
+
+    // Process any leftover elements if the length isn't a multiple of 4.
+    while i < n {
+        sum += a[i] * b[i];
+        i += 1;
+    }
+
+    sum
+}
+```
+
 ## Factor calc
 
 ```rs
