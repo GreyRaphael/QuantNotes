@@ -6,6 +6,7 @@
     - [how to determine the white noise](#how-to-determine-the-white-noise)
     - [random walk strategy](#random-walk-strategy)
   - [kline](#kline)
+  - [stock indicators](#stock-indicators)
 
 ## stock randomness
 
@@ -236,3 +237,9 @@ def generate_bar(df_aligned_bar1m: pl.DataFrame, minute_interval: int = 10) -> p
     )
     return df_bar
 ```
+
+## stock indicators
+
+[Spearman's rank correlation of technical indicators](https://grzegorz.link/indicators)
+
+[谈谈技术分析的本质](https://mp.weixin.qq.com/s/OUA2PfwpCWJCu2CGhTDmvw)
