@@ -6,6 +6,8 @@ preparation
 - 交易所ctp: `pip install openctp-ctp`, visit [openctp](https://pypi.org/user/Jedore/) for details
 - 模拟柜台ctp: `pip install openctp-tts`
 
+> 如果是4097报错，一般是前置地址与柜台类型不匹配
+
 ```py
 from openctp_tts import mdapi, tdapi
 import threading
