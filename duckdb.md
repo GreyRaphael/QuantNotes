@@ -11,6 +11,85 @@
 
 You better build DuckDB from [source](https://github.com/duckdb/duckdb) with C++20 as `*.dll` or `*.so`, then linked to your project.
 
+duckdb in c++23 cannot run, lower it to c++20, if you want to use it in c++23, try the c api
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.30)
+project(proj1 VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+
+add_library(duckdb SHARED IMPORTED)
+set_target_properties(duckdb PROPERTIES
+  IMPORTED_LOCATION             "/path/to/duckdb/lin64/libduckdb.so"
+  INTERFACE_INCLUDE_DIRECTORIES "/path/to/duckdb/lin64"
+)
+
+add_executable(proj1 main.cpp)
+target_link_libraries(proj1 PRIVATE duckdb)
+```
+
+```cpp
+// main.cpp
+#include <duckdb.h>
+#include <cstdio>
+#include <cstdlib>
+
+int main(void) {
+    // 1. Create a DuckDB database in-memory and a connection
+    duckdb_database db;
+    duckdb_connection conn;
+    if (duckdb_open(NULL, &db) != DuckDBSuccess ||
+        duckdb_connect(db, &conn) != DuckDBSuccess) {
+        fprintf(stderr, "Failed to open/connect to DuckDB\n");
+        return EXIT_FAILURE;
+    }
+
+    // 2. Prepare and run a CREATE TABLE + INSERT query
+    const char *init_sql =
+        "CREATE TABLE items(id INTEGER, name VARCHAR);\n"
+        "INSERT INTO items VALUES (1, 'apple'), (2, 'banana'), (3, 'cherry');";
+    duckdb_result result;
+    if (duckdb_query(conn, init_sql, &result) != DuckDBSuccess) {
+        fprintf(stderr, "Error running initialization SQL: %s\n", result.deprecated_error_message);
+        duckdb_destroy_result(&result);
+        duckdb_disconnect(&conn);
+        duckdb_close(&db);
+        return EXIT_FAILURE;
+    }
+    duckdb_destroy_result(&result);
+
+    // 3. Query the table
+    const char *select_sql = "SELECT id, name FROM items ORDER BY id";
+    if (duckdb_query(conn, select_sql, &result) != DuckDBSuccess) {
+        fprintf(stderr, "Error running select SQL: %s\n", result.deprecated_error_message);
+        duckdb_destroy_result(&result);
+        duckdb_disconnect(&conn);
+        duckdb_close(&db);
+        return EXIT_FAILURE;
+    }
+
+    // 4. Print results
+    idx_t rows = duckdb_row_count(&result);
+    idx_t cols = duckdb_column_count(&result);
+    for (idx_t r = 0; r < rows; r++) {
+        for (idx_t c = 0; c < cols; c++) {
+            const char *val = duckdb_value_varchar(&result, c, r);
+            printf("%s%s", val, c + 1 == cols ? "" : ", ");
+        }
+        printf("\n");
+    }
+
+    // 5. Clean up
+    duckdb_destroy_result(&result);
+    duckdb_disconnect(&conn);
+    duckdb_close(&db);
+
+    return EXIT_SUCCESS;
+}
+```
+
 ## Python
 
 insert polars dataframe to duckdb
