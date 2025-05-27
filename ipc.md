@@ -1,6 +1,7 @@
 # Inter-Process Communication
 
 - [Inter-Process Communication](#inter-process-communication)
+  - [ZeroMQ vs nng](#zeromq-vs-nng)
   - [nng or pynng](#nng-or-pynng)
     - [pynng supported transports](#pynng-supported-transports)
       - [pynng `inproc`](#pynng-inproc)
@@ -20,6 +21,10 @@
   - [`cpp-ipc` usage](#cpp-ipc-usage)
   - [`ecal` for ipc](#ecal-for-ipc)
   - [custom cross-platform ipc](#custom-cross-platform-ipc)
+
+## ZeroMQ vs nng
+
+ZeroMQ is better than nng, abandon nng
 
 ## nng or pynng
 
