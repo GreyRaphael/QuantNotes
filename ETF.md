@@ -26,6 +26,7 @@ def merge_etf_bar1d(year: int):
 
 1. add `aietf.service` file
 2. start service
+3. check port occupy: `sudo netstat -tulnp | grep :8000`
 
 ```bash
 # /etc/systemd/system/aietf.service
