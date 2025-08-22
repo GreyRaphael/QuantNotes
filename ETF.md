@@ -81,3 +81,30 @@ sudo rm /path/to/aietf.service
 # Reload the systemd daemon: This ensures that systemd recognizes the changes you've made to the service configuration.
 sudo systemctl daemon-reload
 ```
+
+Best Method: 用反向 SSH 隧道（reverse SSH tunnel）把 Windows 本地的 localhost:8000 暴露到 remote CentOS，然后第 3 台机器访问 CentOS 的转发端口即可。
+- Windows 很可能在家/公司内网，CentOS 是公网云主机 → Windows 发起到 CentOS 的连接更容易通过 NAT/防火墙。
+- 反向 SSH 隧道简单、稳定、可用密钥认证并且加密传输。
+
+```bash
+# in centos
+# step1: modify sshd_config
+sudo vi /etc/ssh/sshd_config
+# allow GatewayPorts
+GatewayPorts yes
+
+sudo systemctl restart sshd
+
+# step2: centos防火墙打开8080端口
+```
+
+```bash
+# in win10, 将id_ed25519.pub放到centos ~/.ssh/authorized_keys
+ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -N -R 0.0.0.0:8080:localhost:8000 centos_user@centos_ip
+
+# 将上述命令保存到taskscheduler, 开机自动启动
+```
+
+```bash
+# 第3台PC访问: curl http://centos_ip:8080/
+```
