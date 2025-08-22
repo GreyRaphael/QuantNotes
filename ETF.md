@@ -66,3 +66,18 @@ sudo systemctl status aietf.service
 # check log
 sudo journalctl -u aietf.service -f
 ```
+
+```bash
+# remove aietf.service completely
+sudo systemctl stop aietf.service
+sudo systemctl disable aietf.service
+
+# Find the location of the service file
+systemctl cat aietf.service
+
+# Then, delete the file (replace /path/to/aietf.service with the actual path)
+sudo rm /path/to/aietf.service
+
+# Reload the systemd daemon: This ensures that systemd recognizes the changes you've made to the service configuration.
+sudo systemctl daemon-reload
+```
