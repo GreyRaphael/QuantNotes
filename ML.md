@@ -12,6 +12,7 @@
   - [Transformer-Based Models](#transformer-based-models)
   - [LSTM and Advanced Variants](#lstm-and-advanced-variants)
   - [Graph Neural Networks](#graph-neural-networks)
+  - [Walk-forward Cross-validation in ranking fold split](#walk-forward-cross-validation-in-ranking-fold-split)
 
 ## AutoML
 
@@ -152,3 +153,59 @@ Temporal Fusion Transformers
 
 - Inter-Stock Relationships: If you have information on how stocks are related (e.g., industry sectors, supply chains), GAT can model these connections.
 - Dynamic Graphs: Can handle changing relationships over time if the connections between stocks are not static.
+
+## Walk-forward Cross-validation in ranking fold split
+
+`from sklearn.model_selection import TimeSeriesSplit`不支持group
+
+`from mlxtend.evaluate.time_series import GroupTimeSeriesSplit`支持group
+
+```py
+# Walk-forward Cross-validation
+from sklearn.model_selection import TimeSeriesSplit
+from mlxtend.evaluate.time_series import GroupTimeSeriesSplit
+import numpy as np
+import pandas as pd
+import catboost
+import xgboost as xgb
+
+n_groups = 28963  # 5 个 query
+samples_per_group = 6  # 每个 query 有 6 个样本
+total_samples = n_groups * samples_per_group
+
+df = pd.DataFrame(
+    {
+        "group_id": np.repeat(np.arange(n_groups), samples_per_group),
+        "time": np.tile(np.arange(samples_per_group), n_groups),
+        "feature1": np.random.randn(total_samples),
+        "feature2": np.random.randn(total_samples),
+        "label": np.random.randint(0, 5, size=total_samples),  # relevance
+    }
+)
+
+# tscv = TimeSeriesSplit(max_train_size=3, n_splits=3)
+tscv = GroupTimeSeriesSplit(test_size=350 * 16, n_splits=3, shift_size=250 * 16)
+
+for i, (train_index, test_index) in enumerate(tscv.split(df["label"], groups=df['group_id'])):
+    print(f"Fold {i}:")
+    print(f"  Train: index={train_index}, size={train_index.size}")
+    print(f"  Test:  index={test_index}, size={test_index.size}")
+
+pool = catboost.Pool(data=df[["time", "feature1", "feature2"]], label=df["label"], group_id=df["group_id"])
+
+cat_gts = GroupTimeSeriesSplit(test_size=350 * 16, n_splits=3, shift_size=250 * 16)
+for i, (train_index, test_index) in enumerate(cat_gts.split(pool.get_label(), groups=pool.get_group_id_hash())):
+    print(f"Fold {i}:")
+    print(f"  Train: index={train_index}, size={train_index.size}")
+    print(f"  Test:  index={test_index}, size={test_index.size}")
+
+dtrain = xgb.DMatrix(data=df[["time", "feature1", "feature2"]], label=df["label"], qid=df["group_id"])
+
+xgb_gts = GroupTimeSeriesSplit(test_size=350 * 16, n_splits=4, shift_size=250 * 16)
+xgb_gp = dtrain.get_group()
+qid = np.repeat(np.arange(xgb_gp.size), repeats=xgb_gp)
+for i, (train_index, test_index) in enumerate(xgb_gts.split(dtrain.get_label(), groups=qid)):
+    print(f"Fold {i}:")
+    print(f"  Train: index={train_index}, size={train_index.size}")
+    print(f"  Test:  index={test_index}, size={test_index.size}")
+```
