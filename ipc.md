@@ -26,6 +26,79 @@
 
 ZeroMQ is better than nng, abandon nng
 
+### Rust Zmq
+
+rust zmq subscriber
+
+```bash
+Cargo.tom
+src/
+    main.rs
+    quote.rs
+```
+
+```toml
+[package]
+name = "zmq_test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytemuck = { version = "1.23", features = ["derive"] }
+threadpool = "1.8"
+zmq = { git = "https://github.com/erickt/rust-zmq", branch = "master" }
+```
+
+```rs
+// main.rs
+use std::error::Error;
+
+use bytemuck::from_bytes;
+use zmq;
+mod quote;
+use quote::TickData;
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let ctx = zmq::Context::new();
+    let subscriber = ctx.socket(zmq::SUB)?;
+    subscriber.set_rcvhwm(0)?;
+    subscriber.set_subscribe(b"")?;
+    subscriber.connect("ipc@hq")?;
+
+    let mut buffer = [0u8; std::mem::size_of::<TickData>()];
+    loop {
+        match subscriber.recv_into(&mut buffer, 0) {
+            Ok(n) if n == buffer.len() => {
+                let tick: &TickData = from_bytes(&buffer);
+                let value = std::str::from_utf8(&tick.symbol)?.trim_end_matches('\0');
+                println!("recv {} {} {}", value, tick.last, tick.volume);
+            }
+            Ok(n) => {
+                eprintln!("Unexpected size: {} bytes", n);
+            }
+            Err(e) => {
+                eprintln!("recv_into error: {}", e);
+            }
+        }
+    }
+
+    Ok(())
+}
+```
+
+```rs
+use bytemuck::{Pod, Zeroable};
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct TickData {
+    pub symbol: [u8; 16],
+    pub timestamp: i64,
+    pub last: f64,
+    pub volume: i64,
+}
+```
+
 ## nng or pynng
 
 in nng(nanomsg next generation), The following protocols are available:
