@@ -1,8 +1,14 @@
 # Cloud
 
-## TencentCloud
+- [Cloud](#cloud)
+  - [shellcrash](#shellcrash)
+  - [wstunnel](#wstunnel)
+    - [auto task](#auto-task)
+  - [gost](#gost)
 
-### shellcrash
+## shellcrash
+
+> [ShellCrash](https://github.com/juewuy/ShellCrash)
 
 ```bash
 export url='https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@master' \
@@ -10,6 +16,7 @@ export url='https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@master' \
   && bash /tmp/install.sh \
   && . /etc/profile &> /dev/null
 
+# 腾讯云设置
 # 7. 访问控制，放行9999
 # 2. 功能设置/ 2. DNS设置/ 9.修改DNS服务器： 183.60.83.19, 183.60.82.98
 cat /etc/resolv.conf
@@ -19,7 +26,7 @@ nameserver 183.60.83.19
 nameserver 183.60.82.98
 ```
 
-### wstunnel
+## wstunnel
 
 > [wstunnel](https://github.com/erebe/wstunnel)
 
@@ -61,7 +68,44 @@ wss://cloud_host:443
 
 `-L tcp://23335:localhost:21115`: 在本地启动`23335`服务，这个服务映射到远端的`21115`端口; 本机有程序访问127.0.0.1:23335，就会被映射到`cloud_host`的`21115`端口
 
-### gost
+### auto task
+
+```bash
+# in aliyun server
+vi /etc/systemd/system/wstunnel.service
+
+systemctl daemon-reload
+systemctl enable wstunnel
+systemctl start wstunnel
+systemctl status wstunnel
+```
+
+```bash
+# /etc/systemd/system/wstunnel.service
+[Unit]
+Description=Wstunnel Server Service
+After=network.target
+
+[Service]
+Type=simple
+# 注意：请将 /usr/local/bin/wstunnel 替换为你实际的程序路径
+ExecStart=/root/wstunnel server wss://[::]:443
+Restart=on-failure
+RestartSec=5
+# 如果需要以特定用户运行，取消下面两行的注释
+# User=nobody
+# Group=nobody
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# win10设置TaskScheduler, when logged in
+powershell -WindowStyle Hidden -Command "Start-Process 'wstunnel' -ArgumentList 'client -L socks5://:1080 -R tcp://[::]:6689:localhost:3389 wss://cloud_host:443' -NoNewWindow"
+```
+
+## gost
 
 > [gost](https://github.com/ginuerzh/gost)
 
