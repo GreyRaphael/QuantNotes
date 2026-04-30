@@ -18,3 +18,33 @@ nameserver 127.0.0.1 #shellcrash-dns-repair
 nameserver 183.60.83.19
 nameserver 183.60.82.98
 ```
+
+### wstunnel
+
+> [wstunnel](https://github.com/erebe/wstunnel)
+
+```bash
+# aliyun server
+# download wstunnel from releases
+# listen on 443
+wstunnel server wss://[::]:443
+```
+
+```bash
+# win10 client
+# 下载代码, 简单修改Cargo.toml为, 避免内网杀毒软件删除
+opt-level = 2
+# build
+cargo build --release
+
+# run
+wstunnel client \
+-L socks5://:1080 \
+-R tcp://[::]:6689:localhost:3389 \
+wss://cloud_host:443
+```
+
+解析:
+- `wss://cloud_host:443`是隧道的外壳，所有流量通过TLS加密websocket发送到`cloud_host:443`, 所有的这些操作在外界看来，都只是在跟服务器进行普通的加密网页通信
+- `-R tcp://[::]:6689:localhost:3389`, Remote to local, 将cloud_host的6689端口映射到本机的3389端口; 任何访问`cloud_host:6689`的流量会被映射到本机`3389`端口
+- `-L socks5://:1080`, Local to remote, 本机开启socks5代理, 本地端口1080借助服务器的身份访问互联网
