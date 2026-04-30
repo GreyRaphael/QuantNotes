@@ -44,7 +44,18 @@ wstunnel client \
 wss://cloud_host:443
 ```
 
-解析:
 - `wss://cloud_host:443`是隧道的外壳，所有流量通过TLS加密websocket发送到`cloud_host:443`, 所有的这些操作在外界看来，都只是在跟服务器进行普通的加密网页通信
 - `-R tcp://[::]:6689:localhost:3389`, Remote to local, 将cloud_host的6689端口映射到本机的3389端口; 任何访问`cloud_host:6689`的流量会被映射到本机`3389`端口
 - `-L socks5://:1080`, Local to remote, 本机开启socks5代理, 本地端口1080借助服务器的身份访问互联网
+
+```bash
+wstunnel client \
+-L tcp://23335:localhost:21115 \
+-L tcp://23336:localhost:21116 \
+-L tcp://23337:localhost:21117 \
+-L tcp://23338:localhost:21118 \
+-L tcp://23339:localhost:21119 \
+wss://cloud_host:443
+```
+
+`-L tcp://23335:localhost:21115`: 在本地启动`23335`服务，这个服务映射到远端的`21115`端口; 本机有程序访问127.0.0.1:23335，就会被映射到`cloud_host`的`21115`端口
