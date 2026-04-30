@@ -48,6 +48,7 @@ cargo build --release
 wstunnel client \
 -L socks5://:1080 \
 -R tcp://[::]:6689:localhost:3389 \
+-R tcp://[::]:8000:localhost:8000 \
 wss://cloud_host:443
 ```
 
