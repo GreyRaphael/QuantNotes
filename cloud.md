@@ -44,11 +44,12 @@ opt-level = 2
 # build
 cargo build --release
 
-# run
+# run with no console color
 wstunnel client \
 -L socks5://:1080 \
 -R tcp://[::]:6689:localhost:3389 \
 -R tcp://[::]:8000:localhost:8000 \
+--no-color true \ 
 wss://cloud_host:443
 ```
 
