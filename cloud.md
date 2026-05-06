@@ -38,6 +38,24 @@ wstunnel server wss://[::]:443
 ```
 
 ```bash
+# Server设置权限
+wstunnel server wss://[::]:443 --restrict-config /root/wstunnel.yaml
+```
+
+```yaml
+# in same directory of wstunnel
+# wstunnel.yaml
+restrictions:
+  - name: "example 4"
+    description: "Allow everything for client using path prefix my-super-secret-path"
+    match:
+      - !PathPrefix "^my-super-secret-path$"
+    allow:
+      - !Tunnel
+      - !ReverseTunnel
+```
+
+```bash
 # win10 client
 # 下载代码, 简单修改Cargo.toml为, 避免内网杀毒软件删除
 opt-level = 2
@@ -91,7 +109,7 @@ After=network.target
 [Service]
 Type=simple
 # 注意：请将 /usr/local/bin/wstunnel 替换为你实际的程序路径
-ExecStart=/root/wstunnel server wss://[::]:443
+ExecStart=/root/wstunnel server wss://[::]:443 --restrict-config /root/wstunnel.yaml
 Restart=on-failure
 RestartSec=5
 # 如果需要以特定用户运行，取消下面两行的注释
