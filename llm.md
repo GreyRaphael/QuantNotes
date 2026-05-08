@@ -13,6 +13,9 @@ lms server start
 # in remote_host use webui
 # 1. check models
 curl -L http://remote_host:1234/v1/models  -H "Authorization: Bearer YourApiKey"
+# docker enable linger
+sudo loginctl enable-linger $USER
+loginctl show-user $USER --property=Linger
 # 2. docker run webui
 docker run -d -p 3000:8080 \
   -e OPENAI_API_BASE_URL="http://host.containers.internal:1234/v1" \
