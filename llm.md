@@ -1,5 +1,10 @@
 # LLM
 
+- [LLM](#llm)
+  - [open-webui](#open-webui)
+  - [llama-server + open-webui](#llama-server--open-webui)
+  - [hermes-webui](#hermes-webui)
+
 ## open-webui
 
 ```bash
@@ -63,3 +68,15 @@ mmproj = F:/LMStudio/models/HauhauCS/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive/m
 ```
 
 然后使用open-webui
+
+## hermes-webui
+
+```bash
+docker run -d -p 8787:8787 \
+  -e WANTED_UID=$(id -u) -e WANTED_GID=$(id -g) \
+  -e HERMES_WEBUI_PASSWORD="YOUR_PASSWORD" \
+  -v ~/.hermes:/home/hermeswebui/.hermes \
+  -e HERMES_WEBUI_STATE_DIR=/home/hermeswebui/.hermes/webui \
+  -v ~/workspace:/workspace \
+  ghcr.io/nesquena/hermes-webui:latest
+```
