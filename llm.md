@@ -23,12 +23,12 @@ sudo loginctl enable-linger $USER
 loginctl show-user $USER --property=Linger
 # 2. docker run webui
 docker run -d -p 3000:8080 \
-  -e OPENAI_API_BASE_URL="http://host.containers.internal:1234/v1" \
+  -e OPENAI_API_BASE_URL="http://host.docker.internal:1234/v1" \
   -e OPENAI_API_KEY="YourApiKey" \
   -e RAG_EMBEDDING_ENGINE="" \
   -v open-webui:/app/backend/data \
   --name open-webui \
-  --add-host=host.containers.internal:host-gateway \
+  --add-host=host.docker.internal:host-gateway \
   ghcr.io/open-webui/open-webui:main
 
 # check status
